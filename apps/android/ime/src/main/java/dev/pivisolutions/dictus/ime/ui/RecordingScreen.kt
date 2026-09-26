@@ -1,0 +1,202 @@
+package dev.pivisolutions.dictus.ime.ui
+
+import androidx.compose.foundation.background
+import androidx.compose.foundation.border
+import androidx.compose.foundation.clickable
+import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.verticalScroll
+import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.material3.Icon
+import androidx.compose.material3.Text
+import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.ui.Alignment
+import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
+import androidx.compose.ui.platform.LocalView
+import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.sp
+import androidx.compose.ui.res.painterResource
+import androidx.compose.ui.res.stringResource
+import dev.pivisolutions.dictus.core.theme.DictusColors
+import dev.pivisolutions.dictus.core.theme.LocalDictusColors
+import androidx.compose.material3.MaterialTheme
+import dev.pivisolutions.dictus.ime.R
+import dev.pivisolutions.dictus.ime.haptics.HapticHelper
+
+/**
+ * Recording overlay that replaces the keyboard during active dictation.
+ *
+ * Total height matches KeyboardScreen (310.dp = 46.dp top + 264.dp content).
+ * Layout follows the mockup (Keyboard Recording frame):
+ * - Top row (46.dp): Cancel (X) left, Confirm (✓) right — outlined pills
+ * - Center (218.dp): Waveform + timer + "En ecoute..."
+ * - Bottom row (46.dp): Settings gear only (no mic pill during recording)
+ *
+ * The top row replaces the MicButtonRow's gear+mic with outlined pill
+ * action buttons (matching iOS style), keeping the same height for
+ * a seamless visual transition.
+ */
+@Composable
+fun RecordingScreen(
+    elapsedMs: Long,
+    energy: List<Float>,
+    onCancel: () -> Unit,
+    onConfirm: () -> Unit,
+    onSwitchKeyboard: () -> Unit,
+    onMicTap: () -> Unit,
+    modifier: Modifier = Modifier,
+    liveText: String = "",
+) {
+    val view = LocalView.current
+    val transcriptScroll = rememberScrollState()
+    LaunchedEffect(liveText, transcriptScroll.maxValue) {
+        transcriptScroll.scrollTo(transcriptScroll.maxValue)
+    }
+
+    Column(
+        modifier = modifier.fillMaxWidth(),
+    ) {
+        // Top row (46.dp) — Cancel (X) left, Confirm (✓) right
+        // Pill-shaped outlined buttons matching the mic pill dimensions (56x40dp)
+        // Styled like iOS: outlined with no fill, icon color matches border
+        val pillShape = RoundedCornerShape(20.dp)
+
+        Row(
+            modifier = Modifier
+                .fillMaxWidth()
+                .height(46.dp)
+                .background(MaterialTheme.colorScheme.background)
+                .padding(horizontal = 8.dp, vertical = 3.dp),
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.SpaceBetween,
+        ) {
+            // Cancel button (X) — outlined pill, subtle border
+            Box(
+                modifier = Modifier
+                    .width(56.dp)
+                    .height(40.dp)
+                    .clip(pillShape)
+                    .border(1.5.dp, MaterialTheme.colorScheme.onSurface.copy(alpha = 0.4f), pillShape)
+                    .clickable {
+                        HapticHelper.performKeyHaptic(view)
+                        onCancel()
+                    },
+                contentAlignment = Alignment.Center,
+            ) {
+                Text(
+                    text = "\u2715",
+                    color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.7f),
+                    fontSize = 16.sp,
+                )
+            }
+
+            // Confirm button (✓) — outlined pill, green border + icon
+            Box(
+                modifier = Modifier
+                    .width(56.dp)
+                    .height(40.dp)
+                    .clip(pillShape)
+                    .border(1.5.dp, DictusColors.Success, pillShape)
+                    .clickable {
+                        HapticHelper.performKeyHaptic(view)
+                        onConfirm()
+                    },
+                contentAlignment = Alignment.Center,
+            ) {
+                Text(
+                    text = "\u2713",
+                    color = DictusColors.Success,
+                    fontSize = 18.sp,
+                    fontWeight = FontWeight.Bold,
+                )
+            }
+        }
+
+        // Center area (218.dp) — waveform + timer + label
+        Column(
+            modifier = Modifier
+                .fillMaxWidth()
+                .height(218.dp)
+                .background(MaterialTheme.colorScheme.background),
+            horizontalAlignment = Alignment.CenterHorizontally,
+            verticalArrangement = Arrangement.Center,
+        ) {
+            // Waveform visualization — fills most of the center
+            WaveformBars(
+                energyLevels = energy,
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(horizontal = 16.dp)
+                    .height(if (liveText.isBlank()) 100.dp else 55.dp),
+            )
+            if (liveText.isNotBlank()) {
+                Text(
+                    text = liveText,
+                    color = LocalDictusColors.current.keyText,
+                    fontSize = 16.sp,
+                    modifier = Modifier.fillMaxWidth()
+                        .padding(horizontal = 16.dp, vertical = 6.dp)
+                        .height(66.dp)
+                        .verticalScroll(transcriptScroll),
+                )
+            }
+
+            // Timer MM:SS
+            Text(
+                text = String.format("%02d:%02d", elapsedMs / 60000, (elapsedMs % 60000) / 1000),
+                color = LocalDictusColors.current.keyText,
+                fontSize = 24.sp,
+                fontWeight = FontWeight.Bold,
+                modifier = Modifier.padding(top = 16.dp),
+            )
+
+            // "En ecoute..." label
+            Text(
+                text = stringResource(dev.pivisolutions.dictus.ime.R.string.ime_recording_listening),
+                color = LocalDictusColors.current.keyText.copy(alpha = 0.6f),
+                fontSize = 13.sp,
+                modifier = Modifier.padding(top = 4.dp),
+            )
+        }
+
+        // Bottom row (46.dp) — settings gear only, no mic pill during recording
+        Row(
+            modifier = Modifier
+                .fillMaxWidth()
+                .height(46.dp)
+                .background(MaterialTheme.colorScheme.background)
+                .padding(horizontal = 8.dp, vertical = 3.dp),
+            verticalAlignment = Alignment.CenterVertically,
+        ) {
+            Box(
+                modifier = Modifier
+                    .width(32.dp)
+                    .height(32.dp)
+                    .clickable {
+                        HapticHelper.performKeyHaptic(view)
+                        onSwitchKeyboard()
+                    },
+                contentAlignment = Alignment.Center,
+            ) {
+                Icon(
+                    painter = painterResource(R.drawable.ic_settings),
+                    contentDescription = "Settings",
+                    tint = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.5f),
+                    modifier = Modifier
+                        .width(20.dp)
+                        .height(20.dp),
+                )
+            }
+        }
+    }
+}

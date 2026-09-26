@@ -1,0 +1,83 @@
+name: Build clients
+
+on:
+  push:
+  pull_request:
+
+jobs:
+  gateway:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+          cache: pip
+          cache-dependency-path: apps/server/requirements-dev.txt
+      - name: Test gateway
+        working-directory: apps/server
+        run: |
+          pip install --requirement requirements-dev.txt
+          python -m pytest
+
+  android:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: "17"
+          cache: gradle
+      - uses: android-actions/setup-android@v3
+      - name: Install native Android toolchain
+        run: sdkmanager "platforms;android-35" "build-tools;35.0.0" "ndk;27.2.12479018" "cmake;3.22.1"
+      - name: Test and build APK
+        working-directory: apps/android
+        run: ./gradlew testDebugUnitTest :app:lintDebug :app:assembleDebug --no-daemon
+      - name: Check APK native library alignment for 16 KB devices
+        run: python3 tools/android/check_apk_alignment.py apps/android/app/build/outputs/apk/debug/app-debug.apk
+      - uses: actions/upload-artifact@v4
+        with:
+          name: openwhisperflow-android-debug
+          path: apps/android/app/build/outputs/apk/debug/app-debug.apk
+
+  desktop:
+    # Keep the native toolchain stable and its Cargo output path short. The
+    # nested ggml Vulkan shader build otherwise exceeds MSVC's PDB path limit.
+    runs-on: windows-2022
+    env:
+      CARGO_TARGET_DIR: D:\t
+    steps:
+      - uses: actions/checkout@v4
+      - uses: oven-sh/setup-bun@v2
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          components: rustfmt
+      - name: Install Vulkan SDK
+        uses: humbletim/install-vulkan-sdk@v1.2
+        with:
+          version: 1.4.309.0
+          cache: true
+      - name: Install frontend dependencies
+        working-directory: apps/desktop
+        run: bun install --frozen-lockfile
+      - name: Check frontend
+        working-directory: apps/desktop
+        run: bun run build
+      - name: Check Rust formatting
+        working-directory: apps/desktop/src-tauri
+        run: cargo fmt --all -- --check
+      - name: Build Windows installer
+        working-directory: apps/desktop
+        # Release signing is intentionally handled outside CI for now. The
+        # repository only contains the updater public key, so generating signed
+        # updater artifacts would fail after the MSI and NSIS bundles are built.
+        run: bun run tauri build --config '{"bundle":{"createUpdaterArtifacts":false}}'
+      - uses: actions/upload-artifact@v4
+        with:
+          name: openwhisperflow-windows-installers
+          path: |
+            D:/t/release/bundle/msi/*.msi
+            D:/t/release/bundle/nsis/*.exe
+          if-no-files-found: error

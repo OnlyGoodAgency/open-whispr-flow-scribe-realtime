@@ -1,0 +1,801 @@
+{
+  "tray": {
+    "settings": "הגדרות...",
+    "checkUpdates": "בדוק עדכונים...",
+    "copyLastTranscript": "העתק את התמלול האחרון",
+    "unloadModel": "פרוק מודל",
+    "model": "מודל",
+    "quit": "יציאה",
+    "cancel": "ביטול"
+  },
+  "sidebar": {
+    "general": "כללי",
+    "models": "מודלים",
+    "advanced": "מתקדם",
+    "postProcessing": "עיבוד משלים",
+    "history": "היסטוריה",
+    "debug": "ניפוי שגיאות",
+    "about": "אודות"
+  },
+  "onboarding": {
+    "subtitle": "כדי להתחיל, בחר מודל תמלול",
+    "recommended": "מומלץ",
+    "download": "הורדה",
+    "downloading": "מוריד...",
+    "customModelDescription": "לא נתמך באופן רשמי",
+    "downloadFailed": "ההורדה נכשלה. נסה שוב.",
+    "modelCard": {
+      "accuracy": "דיוק",
+      "speed": "מהירות"
+    },
+    "models": {
+      "small": {
+        "name": "Whisper Small",
+        "description": "מהיר ודי מדויק."
+      },
+      "medium": {
+        "name": "Whisper Medium",
+        "description": "דיוק טוב, מהירות בינונית"
+      },
+      "turbo": {
+        "name": "Whisper Turbo",
+        "description": "איזון טוב בין דיוק למהירות."
+      },
+      "large": {
+        "name": "Whisper Large",
+        "description": "דיוק טוב, אבל איטי."
+      },
+      "parakeet-tdt-0.6b-v2": {
+        "name": "Parakeet V2",
+        "description": "אנגלית בלבד. המודל הטוב ביותר לדוברי אנגלית."
+      },
+      "parakeet-tdt-0.6b-v3": {
+        "name": "Parakeet V3",
+        "description": "מהיר ומדויק"
+      },
+      "moonshine-base": {
+        "name": "Moonshine Base",
+        "description": "מהיר מאוד, אנגלית בלבד. מתמודד היטב עם מבטאים."
+      },
+      "moonshine-tiny-streaming-en": {
+        "name": "Moonshine V2 Tiny",
+        "description": "מהיר במיוחד, אנגלית בלבד"
+      },
+      "moonshine-small-streaming-en": {
+        "name": "Moonshine V2 Small",
+        "description": "מהיר, אנגלית בלבד. איזון טוב בין מהירות לדיוק."
+      },
+      "moonshine-medium-streaming-en": {
+        "name": "Moonshine V2 Medium",
+        "description": "אנגלית בלבד. איכות גבוהה."
+      },
+      "breeze-asr": {
+        "name": "Breeze ASR",
+        "description": "מותאם למנדרינית טאיוואנית. תמיכה במעבר בין שפות."
+      },
+      "sense-voice-int8": {
+        "name": "SenseVoice",
+        "description": "מהיר מאוד. סינית, אנגלית, יפנית, קוריאנית וקנטונזית."
+      },
+      "gigaam-v3-e2e-ctc": {
+        "name": "GigaAM v3",
+        "description": "זיהוי דיבור ברוסית. מהיר ומדויק."
+      },
+      "canary-180m-flash": {
+        "name": "Canary 180M Flash",
+        "description": "מהיר מאוד. אנגלית, גרמנית, ספרדית וצרפתית. תומך בתרגום."
+      },
+      "canary-1b-v2": {
+        "name": "Canary 1B v2",
+        "description": "רב-לשוני ומדויק. 25 שפות אירופיות. תומך בתרגום."
+      },
+      "cohere-int8": {
+        "name": "Cohere",
+        "description": "מודל גדול, איטי יותר, אך מדויק מאוד ורב-לשוני."
+      }
+    },
+    "errors": {
+      "loadModels": "טעינת המודלים הזמינים נכשלה",
+      "downloadModel": "הורדת המודל נכשלה: {{error}}"
+    },
+    "permissions": {
+      "title": "נדרשות הרשאות",
+      "description": "OpenWhisperFlow צריך כמה הרשאות כדי לעבוד כמו שצריך.",
+      "microphone": {
+        "title": "גישה למיקרופון",
+        "description": "נדרש כדי לשמוע את הקול שלך לצורך תמלול."
+      },
+      "accessibility": {
+        "title": "גישת נגישות",
+        "description": "נדרש כדי להקליד את הטקסט המתומלל לתוך האפליקציות שלך.",
+        "restartHint": "macOS מצריך הפעלה מחדש של האפליקציה כדי לזהות שינויים בנגישות.",
+        "restart": "הפעל מחדש את OpenWhisperFlow"
+      },
+      "grant": "תן הרשאה",
+      "granted": "ניתנה",
+      "waiting": "ממתין...",
+      "allGranted": "הכול מוכן!",
+      "errors": {
+        "checkFailed": "בדיקת ההרשאות נכשלה. נסה שוב.",
+        "requestFailed": "בקשת ההרשאה נכשלה. נסה שוב."
+      }
+    }
+  },
+  "modelSelector": {
+    "custom": "מותאם אישית",
+    "active": "פעיל",
+    "switching": "מחליף...",
+    "noModelsAvailable": "אין מודלים זמינים",
+    "verifying": "מאמת את {{modelName}}...",
+    "verifyingGeneric": "מאמת...",
+    "extracting": "מחלץ את {{modelName}}...",
+    "extractingMultiple": "מחלץ {{count}} מודלים...",
+    "extractingGeneric": "מחלץ...",
+    "downloading": "מוריד {{percentage}}%",
+    "downloadingMultiple": "מוריד {{count}} מודלים...",
+    "modelReady": "המודל מוכן",
+    "loading": "טוען את {{modelName}}...",
+    "loadingGeneric": "טוען...",
+    "modelError": "שגיאת מודל",
+    "modelUnloaded": "המודל נפרק",
+    "noModelDownloadRequired": "אין מודל, נדרשת הורדה",
+    "deleteModel": "מחק את {{modelName}}",
+    "downloadSpeed": "{{speed}} MB/s",
+    "cancel": "ביטול",
+    "cancelDownload": "בטל הורדה",
+    "capabilities": {
+      "languageSelection": "תומך בכמה שפות קלט",
+      "singleLanguage": "תומך רק בשפה הזו",
+      "multiLanguage": "רב-לשוני",
+      "languageOnly": "{{language}} בלבד",
+      "translation": "יכול לתרגם לאנגלית",
+      "translate": "תרגם לאנגלית"
+    }
+  },
+  "settings": {
+    "modelSettings": {
+      "title": "הגדרות עבור {{model}}",
+      "noSettingsNeeded": "המודל הזה עובד אוטומטית ולא דורש הגדרה נוספת."
+    },
+    "general": {
+      "title": "כללי",
+      "shortcut": {
+        "title": "קיצורי מקשים של OpenWhisperFlow",
+        "description": "הגדר קיצורי מקשים כדי להפעיל הקלטה ותמלול דיבור",
+        "loading": "טוען קיצורי מקשים...",
+        "none": "לא הוגדרו קיצורי מקשים",
+        "notFound": "קיצור הדרך לא נמצא",
+        "pressKeys": "לחץ על המקשים...",
+        "bindings": {
+          "transcribe": {
+            "name": "קיצור מקשים לתמלול",
+            "description": "קיצור המקלדת להקלטה ולתמלול הקול שלך."
+          },
+          "cancel": {
+            "name": "קיצור מקשים לביטול",
+            "description": "קיצור המקלדת לביטול ההקלטה הנוכחית."
+          },
+          "transcribe_with_post_process": {
+            "name": "קיצור לעיבוד משלים",
+            "description": "אופציונלי: קיצור מקשים ייעודי שתמיד מפעיל עיבוד AI על התמלול."
+          }
+        },
+        "errors": {
+          "restore": "שחזור קיצור הדרך המקורי נכשל",
+          "set": "הגדרת קיצור הדרך נכשלה: {{error}}",
+          "reset": "איפוס קיצור הדרך לערך המקורי נכשל"
+        }
+      },
+      "language": {
+        "title": "שפה",
+        "description": "בחר את שפת זיהוי הדיבור. מצב אוטומטי יזהה את השפה לבד, בעוד שבחירת שפה מסוימת יכולה לשפר את הדיוק עבורה.",
+        "descriptionUnsupported": "מודל Parakeet מזהה את השפה אוטומטית. אין צורך בבחירה ידנית.",
+        "searchPlaceholder": "חפש שפות...",
+        "noResults": "לא נמצאו שפות",
+        "auto": "אוטומטי"
+      },
+      "pushToTalk": {
+        "label": "לחץ כדי לדבר",
+        "description": "החזק כדי להקליט, שחרר כדי לעצור"
+      }
+    },
+    "models": {
+      "title": "מודלי תמלול",
+      "description": "בחר מודל תמלול או הורד מודלים נוספים. מודלים שונים מציעים רמות שונות של דיוק ומהירות.",
+      "yourModels": "מודלים שהורדו",
+      "availableModels": "זמינים להורדה",
+      "downloaded": "הורד",
+      "available": "זמין להורדה",
+      "deleteConfirm": "האם למחוק את {{modelName}}? יהיה צורך להוריד אותו שוב כדי להשתמש בו.",
+      "deleteActiveConfirm": "{{modelName}} הוא המודל הפעיל שלך כרגע. מחיקה שלו תעצור את התמלול עד שתבחר מודל חדש. להמשיך?",
+      "deleteTitle": "מחיקת מודל",
+      "filters": {
+        "all": "הכול",
+        "multiLanguage": "רב-לשוני",
+        "translation": "תרגום",
+        "allLanguages": "כל השפות"
+      },
+      "noModelsMatch": "אין מודלים שמתאימים לסינון הזה."
+    },
+    "sound": {
+      "title": "שמע",
+      "microphone": {
+        "title": "מיקרופון",
+        "description": "בחר את המיקרופון המועדף עליך",
+        "placeholder": "בחר מיקרופון...",
+        "loading": "טוען..."
+      },
+      "audioFeedback": {
+        "label": "משוב קולי",
+        "description": "נגן צליל כשההקלטה מתחילה ומסתיימת"
+      },
+      "outputDevice": {
+        "title": "התקן פלט",
+        "description": "בחר את התקן השמע המועדף עליך עבור צלילי המשוב",
+        "placeholder": "בחר התקן פלט...",
+        "loading": "טוען..."
+      },
+      "volume": {
+        "title": "עוצמת קול",
+        "description": "כוונן את עוצמת צלילי המשוב"
+      }
+    },
+    "advanced": {
+      "title": "מתקדם",
+      "groups": {
+        "app": "אפליקציה",
+        "output": "פלט",
+        "transcription": "תמלול",
+        "postProcessing": "עיבוד בדיעבד",
+        "history": "היסטוריה",
+        "experimental": "ניסיוני"
+      },
+      "experimentalToggle": {
+        "label": "תכונות ניסיוניות",
+        "description": "הפעל תכונות ניסיוניות שעדיין נמצאות בפיתוח."
+      },
+      "lazyStreamClose": {
+        "label": "השאר את המיקרופון פתוח בין תמלולים",
+        "description": "משאיר את זרם המיקרופון פתוח למשך 30 שניות אחרי סיום ההקלטה, וכך מפחית השהיה בתמלולים רצופים. עשוי לפגוע באיכות שמע Bluetooth בזמן שהאפשרות פעילה."
+      },
+      "acceleration": {
+        "whisper": {
+          "title": "האצת Whisper",
+          "description": "האצת חומרה למודלי Whisper. מצב אוטומטי משתמש ב-GPU אם זמין (Metal ב-macOS, Vulkan ב-Windows/Linux)."
+        },
+        "ort": {
+          "title": "האצת ONNX",
+          "description": "האצת חומרה למודלי ONNX (Parakeet, Canary, Moonshine ועוד). DirectML ב-Windows הוא ניסיוני. ייתכן שמודלים ייכשלו בתמלול."
+        },
+        "gpuDevice": {
+          "title": "התקן GPU",
+          "description": "בחר באיזה GPU להשתמש עבור הסקת Whisper. מצב אוטומטי בוחר את ה-GPU הייעודי.",
+          "auto": "אוטומטי"
+        }
+      },
+      "startHidden": {
+        "label": "התחל מוסתר",
+        "description": "הפעל לתוך מגש המערכת בלי לפתוח את החלון."
+      },
+      "autostart": {
+        "label": "הפעל עם עליית המערכת",
+        "description": "הפעל את OpenWhisperFlow אוטומטית כשאתה מתחבר למחשב."
+      },
+      "showTrayIcon": {
+        "label": "הצג אייקון במגש",
+        "description": "הצג את האייקון של OpenWhisperFlow במגש המערכת."
+      },
+      "overlay": {
+        "title": "מיקום שכבת המשוב",
+        "description": "הצג שכבת משוב חזותית בזמן הקלטה ותמלול. בלינוקס מומלץ לבחור 'ללא'.",
+        "options": {
+          "none": "ללא",
+          "bottom": "למטה",
+          "top": "למעלה"
+        }
+      },
+      "pasteMethod": {
+        "title": "שיטת הדבקה",
+        "description": "בחר איך הטקסט יוכנס. ישיר: מדמה הקלדה דרך קלט המערכת. ללא: מדלג על הדבקה ומעדכן רק היסטוריה/לוח.",
+        "options": {
+          "clipboard": "לוח ({{modifier}}+V)",
+          "clipboardCtrlShiftV": "לוח (Ctrl+Shift+V)",
+          "clipboardShiftInsert": "לוח (Shift+Insert)",
+          "direct": "ישיר",
+          "none": "ללא",
+          "externalScript": "סקריפט חיצוני"
+        },
+        "externalScriptPlaceholder": "/path/to/your/script.sh"
+      },
+      "typingTool": {
+        "title": "כלי הקלדה",
+        "description": "בחר איזה כלי הקלדה בלינוקס ישמש עבור הדבקה ישירה. מצב אוטומטי יזהה וישתמש בכלי המתאים ביותר למערכת שלך.",
+        "options": {
+          "auto": "אוטומטי (מומלץ)"
+        }
+      },
+      "clipboardHandling": {
+        "title": "התנהגות הלוח",
+        "description": "אל תשנה את הלוח ישמור על תוכן הלוח הנוכחי שלך אחרי התמלול. העתק ללוח ישאיר את תוצאת התמלול בלוח אחרי ההדבקה.",
+        "options": {
+          "dontModify": "אל תשנה את הלוח",
+          "copyToClipboard": "העתק ללוח"
+        }
+      },
+      "autoSubmit": {
+        "title": "שליחה אוטומטית",
+        "description": "שלח אוטומטית את צירוף המקשים שנבחר אחרי הכנסת הטקסט. ב-macOS יופעל Cmd+Enter, וב-Windows/Linux יופעל Super+Enter.",
+        "options": {
+          "off": "כבוי",
+          "enter": "Enter",
+          "cmdEnter": "Cmd+Enter",
+          "superEnter": "Super+Enter",
+          "ctrlEnter": "Ctrl+Enter"
+        }
+      },
+      "translateToEnglish": {
+        "label": "תרגם לאנגלית",
+        "description": "תרגם אוטומטית דיבור משפות אחרות לאנגלית בזמן התמלול.",
+        "descriptionUnsupported": "המודל {{model}} לא תומך בתרגום."
+      },
+      "modelUnload": {
+        "title": "פרוק מודל",
+        "description": "שחרר אוטומטית זיכרון GPU/CPU כשהמודל לא היה בשימוש במשך הזמן שנבחר",
+        "options": {
+          "never": "אף פעם",
+          "immediately": "מיידית",
+          "min2": "אחרי 2 דקות",
+          "min5": "אחרי 5 דקות",
+          "min10": "אחרי 10 דקות",
+          "min15": "אחרי 15 דקות",
+          "hour1": "אחרי שעה",
+          "sec15": "אחרי 15 שניות (דיבאג)"
+        }
+      },
+      "customWords": {
+        "title": "מילים מותאמות אישית",
+        "description": "הוסף מילים שנשמעות או נכתבות לא נכון לעיתים קרובות במהלך התמלול. המערכת תתקן אוטומטית מילים דומות כך שיתאימו לרשימה שלך.",
+        "placeholder": "הוסף מילה",
+        "add": "הוסף",
+        "remove": "הסר את {{word}}",
+        "duplicate": "\"{{word}}\" כבר קיימת"
+      }
+    },
+    "postProcessing": {
+      "title": "עיבוד משלים",
+      "hotkey": {
+        "title": "קיצור מקשים"
+      },
+      "api": {
+        "title": "API (תואם OpenAI)",
+        "provider": {
+          "title": "ספק",
+          "description": "בחר ספק שתואם ל-OpenAI."
+        },
+        "providers": {
+          "sectionLocal": "במכשיר שלך",
+          "sectionExternal": "חיצוני — הנתונים יוצאים מהמכשיר הזה",
+          "labels": {
+            "custom": "Custom (מקומי)"
+          },
+          "descriptions": {
+            "apple_intelligence": "אין צורך בהורדה — macOS Apple Silicon",
+            "custom": "Ollama / LM Studio ב-localhost"
+          }
+        },
+        "custom": {
+          "ollamaTip": "טיפ: התקן את <link>Ollama</link> והרץ <code>ollama serve</code> כדי להשתמש במודלים מקומיים.",
+          "testConnection": {
+            "button": "בדוק חיבור",
+            "success": "מחובר — {{count}} מודלים זמינים",
+            "errorTitle": "לא ניתן להגיע אל {{baseUrl}}",
+            "errorDetails": "פרטים"
+          }
+        },
+        "appleIntelligence": {
+          "title": "Apple Intelligence",
+          "description": "רץ כולו על המכשיר. לא נדרש מפתח API או חיבור רשת.",
+          "requirements": "דורש Mac עם Apple Silicon שמריץ macOS Tahoe (26.0) ומעלה. Apple Intelligence חייב להיות מופעל בהגדרות המערכת.",
+          "unavailable": "Apple Intelligence לא זמין במכשיר הזה. נדרש Mac עם Apple Silicon שמריץ macOS Tahoe (26.0) ומעלה, עם Apple Intelligence מופעל בהגדרות המערכת."
+        },
+        "baseUrl": {
+          "title": "כתובת בסיס",
+          "description": "כתובת ה-API הבסיסית עבור הספק הנבחר. רק ספק מותאם אישית ניתן לעריכה.",
+          "placeholder": "https://api.openai.com/v1"
+        },
+        "apiKey": {
+          "title": "מפתח API",
+          "description": "מפתח API עבור הספק הנבחר.",
+          "placeholder": "sk-..."
+        },
+        "model": {
+          "title": "מודל",
+          "descriptionApple": "ספק מגבלת טוקנים מספרית אופציונלית או השאר את ברירת המחדל שעל המכשיר.",
+          "descriptionCustom": "ספק את מזהה המודל שה-endpoint המותאם שלך מצפה לו.",
+          "descriptionDefault": "בחר מודל שהספק הנבחר חושף.",
+          "placeholderApple": "Apple Intelligence",
+          "placeholderWithOptions": "חפש או בחר מודל",
+          "placeholderNoOptions": "הקלד שם מודל",
+          "refreshModels": "רענן מודלים"
+        }
+      },
+      "tabs": {
+        "local": "מקומי",
+        "cloud": "ענן"
+      },
+      "modelsAndLocalProcessing": {
+        "title": "מודלים ועיבוד מקומי",
+        "subtitle": "OpenWhisperFlow מעדיף מודלים מקומיים כדי להבטיח את הפרטיות שלך.",
+        "learnMore": "למידע נוסף",
+        "statusBadge": {
+          "ready_one": "{{count}} מודל מוכן",
+          "ready_other": "{{count}} מודלים מוכנים"
+        },
+        "selectedModel": {
+          "title": "מודל עיבוד לאחר תמלול",
+          "recommendedBadge": "מומלץ",
+          "tags": {
+            "local": "מקומי",
+            "private": "פרטי",
+            "noDataSent": "לא נשלחים נתונים",
+            "offlineCapable": "עובד ללא חיבור לאינטרנט"
+          },
+          "cloudSelectedNotice": "המודל שבחרת הוא ספק ענן. לחץ על הכרטיסייה \"ענן\" למטה כדי לראותו, או בחר במודל מקומי."
+        },
+        "library": {
+          "title": "ספריית מודלים מקומית",
+          "description": "הורד ונהל מודלי GGUF מקומיים. המודלים פועלים לחלוטין במכשיר שלך — אין נתונים שיוצאים מהמחשב.",
+          "yourModels": "המודלים שלי",
+          "availableModels": "זמין להורדה",
+          "recommendedBadge": "מומלץ",
+          "downloadModel": "הורדת מודל",
+          "activateModel": "שימוש במודל זה",
+          "addCustomModel": "הוספת מודל מותאם אישית",
+          "dropZoneLabel": "שחרר קובץ .gguf כאן",
+          "dropZoneSublabel": "או השתמש בכפתור למעלה",
+          "invalidGguf": "קובץ מודל GGUF לא חוקי. בחר קובץ .gguf.",
+          "cancelDownload": "בטל הורדה",
+          "models": {
+            "qwen25_1b5": {
+              "description": "מהיר וקל — פועל על כל מחשב"
+            },
+            "gemma3_4b": {
+              "description": "מצוין לתרגום — רב-תכליתי ורב-לשוני"
+            },
+            "phi4_mini": {
+              "description": "מעקב מדויק אחר הוראות — עיצוב ומבנה"
+            },
+            "llama32_3b": {
+              "description": "כלל-תכליתי מאוזן — איכות רב-לשונית מוצקה"
+            },
+            "translateGemma4b": {
+              "description": "מודל תרגום ייעודי — 55 שפות שנבדקו"
+            }
+          }
+        },
+        "embedded": {
+          "noModelHeading": "לא נבחר מודל מקומי",
+          "noModelBody": "הורד מודל למטה כדי להפעיל את העיבוד המובנה. מודל Qwen2.5-1.5B מומלץ לרוב המחשבים.",
+          "downloadNowLink": "הורד מודל",
+          "providerLabel": "מובנה (מקומי)",
+          "providerDescription": "פועל במכשיר שלך. דורש מודל מקומי שהורד."
+        }
+      },
+      "prompts": {
+        "title": "פרומפט",
+        "selectedPrompt": {
+          "title": "פרומפט נבחר",
+          "description": "בחר תבנית לשיפור התמלול או צור חדשה. השתמש ב-${output} בתוך טקסט הפרומפט כדי להפנות לתמלול שנקלט."
+        },
+        "noPrompts": "אין פרומפטים זמינים",
+        "selectPrompt": "בחר פרומפט",
+        "createNew": "צור פרומפט חדש",
+        "promptLabel": "שם הפרומפט",
+        "promptLabelPlaceholder": "הזן שם לפרומפט",
+        "promptInstructions": "הוראות לפרומפט",
+        "promptInstructionsPlaceholder": "כתוב את ההוראות שירוצו אחרי התמלול. לדוגמה: שפר דקדוק ובהירות עבור הטקסט הבא: ${output}",
+        "promptTip": "טיפ: השתמש ב-<code>${output}</code> כדי להכניס את הטקסט המתומלל לפרומפט שלך.",
+        "updatePrompt": "עדכן פרומפט",
+        "deletePrompt": "מחק פרומפט",
+        "createPrompt": "צור פרומפט",
+        "cancel": "ביטול",
+        "selectToEdit": "בחר פרומפט למעלה כדי לצפות בפרטים שלו ולערוך אותם.",
+        "createFirst": "לחץ על 'צור פרומפט חדש' למעלה כדי ליצור את פרומפט העיבוד הראשון שלך."
+      }
+    },
+    "history": {
+      "title": "היסטוריה",
+      "openFolder": "פתח את תיקיית ההקלטות",
+      "loading": "טוען היסטוריה...",
+      "empty": "עדיין אין תמלולים. התחל להקליט כדי לבנות את ההיסטוריה שלך!",
+      "copyToClipboard": "העתק תמלול ללוח",
+      "save": "שמור תמלול",
+      "unsave": "הסר משמורים",
+      "delete": "מחק רשומה",
+      "deleteError": "מחיקת הרשומה נכשלה. נסה שוב.",
+      "retranscribe": "תמלל מחדש",
+      "retranscribeError": "תמלול מחדש נכשל. נסה שוב.",
+      "transcribing": "מתמלל...",
+      "transcriptionFailed": "התמלול נכשל. אפשר לתמלל מחדש באמצעות אייקון הניסיון החוזר."
+    },
+    "debug": {
+      "title": "ניפוי שגיאות",
+      "logDirectory": {
+        "title": "תיקיית לוגים",
+        "description": "המיקום שבו נשמרים קבצי הלוג"
+      },
+      "logLevel": {
+        "title": "רמת לוג",
+        "description": "הגדר את רמת הפירוט של הלוגים"
+      },
+      "updateChecks": {
+        "label": "בדוק עדכונים",
+        "description": "בדוק אוטומטית אם קיימות גרסאות חדשות של OpenWhisperFlow"
+      },
+      "soundTheme": {
+        "label": "ערכת צלילים",
+        "description": "בחר ערכת צלילים להתחלה ולסיום ההקלטה"
+      },
+      "wordCorrectionThreshold": {
+        "title": "סף תיקון מילים",
+        "description": "רגישות לתיקוני מילים מותאמות אישית"
+      },
+      "historyLimit": {
+        "title": "מגבלת היסטוריה",
+        "description": "המספר המרבי של רשומות היסטוריה לשמירה",
+        "entries": "רשומות"
+      },
+      "recordingRetention": {
+        "title": "מחיקה אוטומטית של הקלטות",
+        "description": "מחק הקלטות ישנות אוטומטית כדי לחסוך מקום",
+        "never": "אף פעם",
+        "preserveLimit": "שמור את {{count}} האחרונות",
+        "days3": "אחרי 3 ימים",
+        "weeks2": "אחרי שבועיים",
+        "months3": "אחרי 3 חודשים",
+        "placeholder": "בחר משך שמירה..."
+      },
+      "alwaysOnMicrophone": {
+        "label": "מיקרופון תמיד פעיל",
+        "description": "השאר את המיקרופון פעיל לתגובה מהירה יותר"
+      },
+      "clamshellMicrophone": {
+        "title": "מיקרופון במצב clamshell",
+        "description": "המיקרופון שישמש כשהמחשב הנייד סגור"
+      },
+      "postProcessingToggle": {
+        "label": "עיבוד משלים",
+        "description": "הפעל שיפור טקסט מבוסס AI אחרי התמלול"
+      },
+      "muteWhileRecording": {
+        "label": "השתק בזמן הקלטה",
+        "description": "השתק את שמע המערכת בזמן הקלטה"
+      },
+      "appendTrailingSpace": {
+        "label": "הוסף רווח בסוף",
+        "description": "הוסף רווח אחרי התמלול המודבק"
+      },
+      "keyboardImplementation": {
+        "title": "מימוש מקלדת",
+        "description": "בחר את מנגנון קיצורי המקלדת.",
+        "bindingsReset": "קיצורי המקלדת לא היו תואמים ואופסו לברירות המחדל"
+      },
+      "paths": {
+        "appData": "נתוני אפליקציה:",
+        "models": "מודלים:",
+        "settings": "הגדרות:"
+      },
+      "pasteDelay": {
+        "title": "השהיית הדבקה",
+        "description": "השהיה לפני שליחת צירוף ההדבקה (במילישניות). הגדל אם טקסט שגוי מודבק."
+      },
+      "recordingBuffer": {
+        "title": "באפר הקלטה נוסף",
+        "description": "זמן נוסף (במילישניות) להמשך הקלטה אחרי שחרור המקש, כדי ללכוד סוף דיבור. 0 = בלי באפר נוסף."
+      },
+      "simulateUpdaterRestart": {
+        "title": "סימולציה של הפעלה מחדש לעדכון",
+        "description": "מפעיל מחדש את OpenWhisperFlow דרך אותה API שמשתמשת בה tauri-plugin-updater לאחר החלת עדכון. השתמש בזה לאימות SHUT-03 (הפעלה מחדש נקייה לאחר עדכון) מבלי לפרסם גרסת בדיקה חד-פעמית.",
+        "button": "סימולציה של הפעלה מחדש"
+      }
+    },
+    "about": {
+      "title": "אודות",
+      "version": {
+        "title": "גרסה",
+        "description": "הגרסה הנוכחית של OpenWhisperFlow"
+      },
+      "appDataDirectory": {
+        "title": "תיקיית נתוני אפליקציה",
+        "description": "המיקום שבו OpenWhisperFlow שומר את הנתונים שלו"
+      },
+      "sourceCode": {
+        "title": "קוד מקור",
+        "description": "צפה בקוד המקור ותרום",
+        "button": "צפה ב-GitHub"
+      },
+      "supportDevelopment": {
+        "title": "תמיכה בפיתוח",
+        "description": "עזור לנו להמשיך לבנות את OpenWhisperFlow",
+        "button": "תרומה"
+      },
+      "privacy": {
+        "title": "מדיניות פרטיות",
+        "description": "הקול שלך נשאר במכשיר שלך. קרא את מדיניות הפרטיות שלנו.",
+        "button": "צפה במדיניות הפרטיות"
+      },
+      "networkSurface": {
+        "title": "משטח רשת",
+        "description": "כל נקודת קצה יוצאת שאפליקציה זו יכולה לפנות אליה, וכיצד להשבית כל אחת.",
+        "button": "הצג מסמך פרטיות"
+      },
+      "ecosystem": {
+        "title": "מערכת OpenWhisperFlow",
+        "description": "OpenWhisperFlow זמין ב-iOS, Android ובשולחן העבודה.",
+        "button": "למד עוד"
+      },
+      "acknowledgments": {
+        "title": "תודות",
+        "handy": {
+          "title": "Handy",
+          "description": "אפליקציית תמלול קוד פתוח מאת CJ Pais",
+          "details": "OpenWhisperFlow Desktop הוא fork של Handy. תודה ל-CJ Pais ולקהילת Handy על בניית הבסיס עליו נבנה OpenWhisperFlow.",
+          "button": "צפה ב-GitHub"
+        },
+        "whisper": {
+          "title": "Whisper.cpp",
+          "description": "הסקה מהירה לביצועים גבוהים עבור מודל זיהוי הדיבור Whisper של OpenAI",
+          "details": "OpenWhisperFlow משתמש ב-Whisper.cpp לתמלול מהיר ומקומי. תודה לעבודה המדהימה של Georgi Gerganov וכל התורמים."
+        }
+      }
+    }
+  },
+  "footer": {
+    "downloadingModel": "מוריד את {{model}}...",
+    "checkingUpdates": "בודק עדכונים...",
+    "updateAvailable": "יש עדכון זמין: {{version}}",
+    "updateAvailableShort": "יש עדכון זמין",
+    "upToDate": "מעודכן",
+    "downloadUpdate": "הורד עדכון",
+    "restart": "הפעל מחדש",
+    "updateCheckingDisabled": "בדיקת העדכונים כבויה",
+    "downloading": "מוריד... {{progress}}%",
+    "installing": "מתקין...",
+    "preparing": "מכין...",
+    "checkForUpdates": "בדוק עדכונים",
+    "portableUpdateTitle": "נדרש עדכון ידני",
+    "portableUpdateMessage": "התקנות ניידות אינן מתעדכנות אוטומטית. כדי לעדכן, הורד את מתקין ה-NSIS האחרון מ-GitHub Releases, התקן לאותה תיקייה, ואז העתק את תיקיית Data/ (הגדרות, מודלים, הקלטות) מהגרסה הישנה לחדשה.",
+    "portableUpdateButton": "פתח את GitHub Releases"
+  },
+  "common": {
+    "loading": "טוען...",
+    "save": "שמור",
+    "cancel": "ביטול",
+    "reset": "איפוס",
+    "add": "הוסף",
+    "remove": "הסר",
+    "delete": "מחק",
+    "edit": "ערוך",
+    "create": "צור",
+    "update": "עדכן",
+    "close": "סגור",
+    "open": "פתח",
+    "default": "ברירת מחדל",
+    "enabled": "פעיל",
+    "disabled": "כבוי",
+    "on": "פועל",
+    "off": "כבוי",
+    "yes": "כן",
+    "no": "לא",
+    "noOptionsFound": "לא נמצאו אפשרויות"
+  },
+  "accessibility": {
+    "permissionsRequired": "נדרשות הרשאות נגישות",
+    "permissionsDescription": "OpenWhisperFlow צריך הרשאות נגישות כדי להקליד את הטקסט המתומלל.",
+    "openSettings": "פתח את הגדרות המערכת",
+    "dismiss": "סגור"
+  },
+  "errors": {
+    "loadDirectory": "שגיאה בטעינת תיקייה: {{error}}",
+    "micPermissionDeniedTitle": "הגישה למיקרופון נדחתה",
+    "micPermissionDenied": {
+      "generic": "מערכת ההפעלה חסמה את הגישה למיקרופון. תן הרשאת מיקרופון בהגדרות המערכת.",
+      "windows": "הפעל גישה למיקרופון ב-Settings > Privacy & security > Microphone, כולל גישה לאפליקציות שולחן עבודה.",
+      "macos": "תן גישה למיקרופון ב-System Settings > Privacy & Security > Microphone.",
+      "linux": "תן גישה למיקרופון דרך הגדרות השמע או הפרטיות במערכת שלך."
+    },
+    "noInputDeviceTitle": "לא נמצא מיקרופון",
+    "noInputDevice": "לא זוהה התקן קלט שמע. חבר מיקרופון או אוזנייה ונסה שוב.",
+    "recordingFailed": "הפעלת ההקלטה נכשלה: {{error}}",
+    "modelLoadFailed": "טעינת המודל נכשלה: {{model}}",
+    "modelLoadFailedUnknown": "מודל לא ידוע",
+    "pasteFailedTitle": "ההדבקה נכשלה",
+    "pasteFailed": "לא ניתן היה להדביק את הטקסט ביישום הפעיל.",
+    "boundary": {
+      "title": "משהו השתבש.",
+      "reload": "טעינה מחדש"
+    },
+    "postProcessFailedTitle": "עיבוד שלאחר מכן אינו זמין",
+    "postProcessFailed": "הגדר מודל בהגדרות כדי לאפשר עיבוד שלאחר מכן. התמלול שלך הודבק כפי שהוא."
+  },
+  "appLanguage": {
+    "title": "שפת האפליקציה",
+    "description": "שנה את שפת ממשק OpenWhisperFlow. אוטומטי עוקב אחרי שפת המערכת."
+  },
+  "overlay": {
+    "transcribing": "מתמלל...",
+    "processing": "מעבד...",
+    "postProcessUnavailable": "הגדר מודל לעיבוד שלאחר מכן"
+  },
+  "smartModes": {
+    "sections": {
+      "rewrite": "כתיבה מחדש",
+      "translation": "תרגום"
+    },
+    "createRewrite": "כתיבה מחדש חדשה",
+    "createTranslation": "תרגום חדש",
+    "card": {
+      "saveCta": "שמירת מצב",
+      "discardCta": "ביטול שינויים",
+      "createCta": "יצירת מצב",
+      "discardNewCta": "ביטול",
+      "addShortcut": "הוספת קיצור דרך",
+      "shortcutConflict": "כבר בשימוש על ידי: {{name}}",
+      "shortcutConflictBase": "תחילת קיצור הדרך הזה ({{base}}) כבר בשימוש על ידי {{name}} — יופעל לפני המקש הבא",
+      "shortcutBaseHint": "קיצור דרך שתחילתו תואמת קיצור אחר לא יפעל — המקש הראשון מופעל לפני שתסיים.",
+      "targetLanguage": "שפת יעד",
+      "nameLabel": "שם",
+      "promptLabel": "הנחיה",
+      "namePlaceholder": "לדוגמה: קצר ותמציתי",
+      "promptPlaceholder": "כתוב מחדש את הטקסט הבא כך שיהיה תמציתי יותר.\n\nטקסט:\n${output}",
+      "outputHint": "השתמש ב-${output} במקום שבו יש להכניס את תמלול ההכתבה."
+    },
+    "picker": {
+      "rewriteTitle": "הוספת מצב כתיבה מחדש",
+      "translationTitle": "הוספת מצב תרגום",
+      "custom": "מותאם אישית",
+      "customSubtext": "צור מצב עם שם והנחיה משלך",
+      "added": "נוסף",
+      "overwriteTitle": "המצב כבר קיים",
+      "overwriteConfirm": "המצב {{name}} כבר קיים. הוספה מחדש תדרוס את המצב הקיים. להמשיך?"
+    },
+    "shortcut": {
+      "clear": "ניקוי",
+      "clearAriaLabel": "ניקוי קיצור {{combo}}",
+      "recording": "לחץ על מקשים…"
+    },
+    "kind": {
+      "rewrite": "כתיבה מחדש",
+      "translation": "תרגום"
+    },
+    "translation": {
+      "genericEngineNote": "מאמץ מיטבי — איכות משתנה בהתאם למודל",
+      "noEngineHeading": "תרגום דורש ספק פעיל",
+      "noEngineBody": "בחר או הגדר ספק עיבוד לאחר העיבוד למעלה כדי להשתמש בתרגום."
+    },
+    "delete": {
+      "title": "מחיקת מצב",
+      "confirm": "למחוק את המצב {{name}}? גם קיצור הדרך המשויך יוסר.",
+      "ariaLabel": "מחיקת {{name}}"
+    },
+    "edit": {
+      "ariaLabel": "עריכת {{name}}"
+    },
+    "noModel": {
+      "heading": "לא נבחר מודל מקומי",
+      "body": "בחר או הורד מודל מקומי למעלה כדי להשתמש במצבים החכמים."
+    },
+    "defaultModes": {
+      "cleanUp": "ניקוי",
+      "makeFormal": "הפוך לרשמי",
+      "makeCasual": "הפוך ללא רשמי",
+      "writeAsEmail": "כתוב כאימייל",
+      "bulletPoints": "נקודות",
+      "summarize": "סכם",
+      "translateToEnglish": "תרגם לאנגלית",
+      "translateToSpanish": "תרגם לספרדית",
+      "translateToFrench": "תרגם לצרפתית",
+      "translateToChinese": "תרגם לסינית"
+    }
+  }
+}

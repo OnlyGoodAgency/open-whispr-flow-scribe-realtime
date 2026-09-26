@@ -1,0 +1,217 @@
+package dev.pivisolutions.dictus.ui.settings
+
+import androidx.datastore.core.DataStore
+import androidx.datastore.preferences.core.Preferences
+import androidx.datastore.preferences.core.emptyPreferences
+import androidx.datastore.preferences.core.edit
+import androidx.test.core.app.ApplicationProvider
+import dev.pivisolutions.dictus.core.preferences.PreferenceKeys
+import dev.pivisolutions.dictus.model.ModelCatalog
+import dev.pivisolutions.dictus.model.ModelManager
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.ExperimentalCoroutinesApi
+import kotlinx.coroutines.flow.Flow
+import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.test.TestScope
+import kotlinx.coroutines.test.UnconfinedTestDispatcher
+import kotlinx.coroutines.test.advanceUntilIdle
+import kotlinx.coroutines.test.resetMain
+import kotlinx.coroutines.test.runTest
+import kotlinx.coroutines.test.setMain
+import org.junit.After
+import org.junit.Assert.assertEquals
+import org.junit.Assert.assertFalse
+import org.junit.Assert.assertTrue
+import org.junit.Before
+import org.junit.Test
+import org.junit.runner.RunWith
+import org.robolectric.RobolectricTestRunner
+import org.robolectric.annotation.Config
+
+/**
+ * Unit tests for SettingsViewModel.
+ *
+ * Uses a fake in-memory DataStore to test DataStore read/write logic
+ * without needing a real file system. Robolectric provides an Application
+ * context so ModelManager can initialise its models directory.
+ *
+ * WHY UnconfinedTestDispatcher: SettingsViewModel uses viewModelScope (Dispatchers.Main).
+ * We replace Main with UnconfinedTestDispatcher so that coroutines launched by the
+ * ViewModel execute eagerly on the same thread, making state changes visible immediately
+ * without needing to call advanceUntilIdle() for every assertion.
+ */
+@RunWith(RobolectricTestRunner::class)
+@Config(sdk = [33])
+@OptIn(ExperimentalCoroutinesApi::class)
+class SettingsViewModelTest {
+
+    private val testDispatcher = UnconfinedTestDispatcher()
+    private val testScope = TestScope(testDispatcher)
+
+    private lateinit var fakeDataStore: FakeDataStore
+    private lateinit var modelManager: ModelManager
+    private lateinit var viewModel: SettingsViewModel
+
+    @Before
+    fun setUp() {
+        Dispatchers.setMain(testDispatcher)
+        fakeDataStore = FakeDataStore()
+        val context = ApplicationProvider.getApplicationContext<android.app.Application>()
+        modelManager = ModelManager(context)
+        viewModel = SettingsViewModel(fakeDataStore, modelManager)
+    }
+
+    @After
+    fun tearDown() {
+        Dispatchers.resetMain()
+    }
+
+    @Test
+    fun `language defaults to auto`() = testScope.runTest {
+        assertEquals("auto", viewModel.language.value)
+    }
+
+    @Test
+    fun `setLanguage writes fr to DataStore`() = testScope.runTest {
+        viewModel.setLanguage("fr")
+        advanceUntilIdle()
+        assertEquals("fr", viewModel.language.value)
+    }
+
+    @Test
+    fun `keyboard language defaults to French and survives ViewModel restart`() = testScope.runTest {
+        assertEquals("fr", viewModel.keyboardLanguage.value)
+        viewModel.setKeyboardLanguage("en")
+        advanceUntilIdle()
+        assertEquals("en", viewModel.keyboardLanguage.value)
+
+        val restarted = SettingsViewModel(fakeDataStore, modelManager)
+        advanceUntilIdle()
+        assertEquals("en", restarted.keyboardLanguage.value)
+    }
+
+    @Test
+    fun `keyboard language is independent from ASR and preserves explicit layout`() = testScope.runTest {
+        viewModel.setLanguage("auto")
+        viewModel.setKeyboardLayout("azerty")
+        viewModel.setKeyboardLanguage("en")
+        advanceUntilIdle()
+
+        assertEquals("auto", viewModel.language.value)
+        assertEquals("en", viewModel.keyboardLanguage.value)
+        assertEquals("azerty", viewModel.keyboardLayout.value)
+    }
+
+    @Test
+    fun `profile layout default follows keyboard language when layout is absent`() = testScope.runTest {
+        viewModel.setKeyboardLanguage("en")
+        advanceUntilIdle()
+        assertEquals("qwerty", viewModel.keyboardLayout.value)
+
+        fakeDataStore.edit { it[PreferenceKeys.KEYBOARD_LANGUAGE] = "unknown" }
+        advanceUntilIdle()
+        assertEquals("fr", viewModel.keyboardLanguage.value)
+        assertEquals("azerty", viewModel.keyboardLayout.value)
+    }
+
+    @Test
+    fun `activeModel defaults to tiny`() = testScope.runTest {
+        assertEquals(ModelCatalog.DEFAULT_KEY, viewModel.activeModel.value)
+    }
+
+    @Test
+    fun `setActiveModel writes base to DataStore`() = testScope.runTest {
+        viewModel.setActiveModel("base")
+        advanceUntilIdle()
+        assertEquals("base", viewModel.activeModel.value)
+    }
+
+    @Test
+    fun `autocorrect has a dedicated enabled-by-default persisted preference`() = testScope.runTest {
+        assertEquals("autocorrect_enabled", PreferenceKeys.AUTOCORRECT_ENABLED.name)
+        assertTrue(viewModel.autocorrectEnabled.value)
+
+        viewModel.toggleAutocorrect()
+        advanceUntilIdle()
+
+        assertFalse(viewModel.autocorrectEnabled.value)
+        assertTrue(viewModel.suggestionsEnabled.value)
+        val restarted = SettingsViewModel(fakeDataStore, modelManager)
+        advanceUntilIdle()
+        assertFalse(restarted.autocorrectEnabled.value)
+    }
+
+    @Test
+    fun `suggestions toggle does not change autocorrect`() = testScope.runTest {
+        viewModel.toggleSuggestions()
+        advanceUntilIdle()
+
+        assertFalse(viewModel.suggestionsEnabled.value)
+        assertTrue(viewModel.autocorrectEnabled.value)
+    }
+
+    @Test
+    fun `hapticsEnabled defaults to true`() = testScope.runTest {
+        assertTrue(viewModel.hapticsEnabled.value)
+    }
+
+    @Test
+    fun `toggleHaptics flips hapticsEnabled to false`() = testScope.runTest {
+        viewModel.toggleHaptics()
+        advanceUntilIdle()
+        assertFalse(viewModel.hapticsEnabled.value)
+    }
+
+    @Test
+    fun `keySoundsEnabled defaults to true`() = testScope.runTest {
+        assertTrue(viewModel.keySoundsEnabled.value)
+    }
+
+    @Test
+    fun `toggleKeySounds flips keySoundsEnabled to false`() = testScope.runTest {
+        viewModel.toggleKeySounds()
+        advanceUntilIdle()
+        assertFalse(viewModel.keySoundsEnabled.value)
+    }
+
+    @Test
+    fun `soundEnabled defaults to false`() = testScope.runTest {
+        assertFalse(viewModel.soundEnabled.value)
+    }
+
+    @Test
+    fun `toggleSound flips soundEnabled to true`() = testScope.runTest {
+        viewModel.toggleSound()
+        advanceUntilIdle()
+        assertTrue(viewModel.soundEnabled.value)
+    }
+
+    @Test
+    fun `floating mic disclosure requires affirmative acceptance`() = testScope.runTest {
+        var continued = false
+        assertFalse(viewModel.floatingMicDisclosureAccepted.value)
+
+        viewModel.acceptFloatingMicDisclosure { continued = true }
+        advanceUntilIdle()
+
+        assertTrue(viewModel.floatingMicDisclosureAccepted.value)
+        assertTrue(continued)
+    }
+}
+
+/**
+ * Fake in-memory DataStore for testing.
+ *
+ * Stores preferences in a MutableStateFlow<Preferences> so that flows
+ * emit new values when updateData() is called — exactly what the real DataStore does.
+ */
+class FakeDataStore : DataStore<Preferences> {
+    private val _preferences = MutableStateFlow<Preferences>(emptyPreferences())
+    override val data: Flow<Preferences> = _preferences
+
+    override suspend fun updateData(transform: suspend (t: Preferences) -> Preferences): Preferences {
+        val updated = transform(_preferences.value)
+        _preferences.value = updated
+        return updated
+    }
+}

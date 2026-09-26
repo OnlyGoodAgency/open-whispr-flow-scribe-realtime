@@ -1,0 +1,27 @@
+services:
+  gateway:
+    build:
+      context: ./apps/server
+    restart: unless-stopped
+    expose:
+      - "8000"
+    environment:
+      OPENROUTER_API_KEY: ${OPENROUTER_API_KEY:?Set OPENROUTER_API_KEY in Coolify}
+      CLIENT_API_KEY: ${CLIENT_API_KEY:?Set CLIENT_API_KEY in Coolify}
+      SUPABASE_URL: ${SUPABASE_URL:-}
+      ELEVENLABS_API_KEY: ${ELEVENLABS_API_KEY:-}
+      REALTIME_MAX_SECONDS: ${REALTIME_MAX_SECONDS:-900}
+      STT_PRIMARY_MODEL: ${STT_PRIMARY_MODEL:-openai/whisper-large-v3-turbo}
+      STT_FALLBACK_MODEL: ${STT_FALLBACK_MODEL:-openai/whisper-1}
+      TEXT_CLEANUP_ENABLED: ${TEXT_CLEANUP_ENABLED:-true}
+      TEXT_CLEANUP_MODEL: ${TEXT_CLEANUP_MODEL:-openai/gpt-4.1-mini}
+      MAX_UPLOAD_MB: ${MAX_UPLOAD_MB:-25}
+      UPSTREAM_TIMEOUT_SECONDS: ${UPSTREAM_TIMEOUT_SECONDS:-60}
+      APP_URL: ${APP_URL:-}
+      APP_TITLE: ${APP_TITLE:-OpenWhisperFlow}
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://127.0.0.1:8000/health')"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 10s

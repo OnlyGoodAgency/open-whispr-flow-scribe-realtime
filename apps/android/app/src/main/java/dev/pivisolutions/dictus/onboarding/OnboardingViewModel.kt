@@ -1,0 +1,219 @@
+package dev.pivisolutions.dictus.onboarding
+
+import android.content.Context
+import androidx.datastore.core.DataStore
+import androidx.datastore.preferences.core.Preferences
+import androidx.datastore.preferences.core.edit
+import androidx.lifecycle.SavedStateHandle
+import androidx.lifecycle.ViewModel
+import androidx.lifecycle.viewModelScope
+import dagger.hilt.android.lifecycle.HiltViewModel
+import dagger.hilt.android.qualifiers.ApplicationContext
+import dev.pivisolutions.dictus.core.preferences.PreferenceKeys
+import dev.pivisolutions.dictus.model.ModelCatalog
+import dev.pivisolutions.dictus.model.ModelInfo
+import dev.pivisolutions.dictus.service.DownloadProgress
+import dev.pivisolutions.dictus.service.ModelDownloader
+import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.StateFlow
+import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.launch
+import javax.inject.Inject
+
+/**
+ * ViewModel for the 7-step onboarding flow.
+ *
+ * Manages state transitions between onboarding steps with validation guards:
+ * - Step 2 (Mic): user must grant RECORD_AUDIO permission
+ * - Step 3 (Keyboard): user must enable the Dictus IME
+ * - Step 5 (Download): model download must complete before advancing
+ * - Step 7 (Success): tapping "Commencer" writes HAS_COMPLETED_ONBOARDING=true to DataStore
+ *
+ * WHY ViewModel (not stateless composable): Onboarding state survives configuration changes
+ * (e.g. screen rotation during download). The ViewModel holds the download coroutine so a
+ * rotation does not cancel an in-progress download.
+ *
+ * WHY SavedStateHandle for currentStep/micPermissionGranted: The system can kill
+ * the app process when showing a system dialog (e.g. the mic permission prompt on step 2).
+ * SavedStateHandle persists these values in the Activity's saved instance state bundle so that
+ * when the user returns to the app, the onboarding resumes at the correct step instead of
+ * resetting to step 1.
+ *
+ * WHY regular MutableStateFlow for selectedLayout/downloadProgress/modelDownloadComplete/downloadError:
+ * These are transient: layout can be re-chosen, and a partial download restarts anyway on process
+ * death. Persisting them would add complexity with no user-visible benefit.
+ *
+ * WHY active model at step 5 but onboarding completion at step 7: The test recording in step 6
+ * must use the exact recommended model that step 5 downloaded. Selecting that model when the
+ * download completes makes it available to DictationService without prematurely marking the
+ * onboarding flow complete; HAS_COMPLETED_ONBOARDING is still written only on the success screen.
+ *
+ * @param context Application context for device capability checks (RAM-based model recommendation).
+ * @param dataStore Application-scoped DataStore for persistent onboarding state.
+ * @param modelDownloader Injectable downloader for the default Whisper model.
+ * @param savedStateHandle Hilt auto-provides this for @HiltViewModel; persists step/flags across
+ *   process death caused by system dialogs (mic permission, etc.).
+ */
+@HiltViewModel
+class OnboardingViewModel @Inject constructor(
+    @ApplicationContext context: Context,
+    private val dataStore: DataStore<Preferences>,
+    private val modelDownloader: ModelDownloader,
+    private val savedStateHandle: SavedStateHandle,
+) : ViewModel() {
+
+    // --- Recommended model based on device RAM ---
+
+    /** Stable key for the recommended model (e.g. "parakeet-tdt-0.6b-v3" or "small-q5_1"). */
+    val recommendedKey: String = ModelCatalog.recommendedModelKey()
+
+    /** Full ModelInfo for the recommended model, used by the UI to display name/size/quality. */
+    val recommendedModelInfo: ModelInfo = ModelCatalog.findByKey(recommendedKey)!!
+
+    // --- Step state machine (SavedStateHandle-backed for process-death survival) ---
+
+    /** Current onboarding step (1–7). Survives process death via SavedStateHandle. */
+    val currentStep: StateFlow<Int> = savedStateHandle.getStateFlow("currentStep", 1)
+
+    // --- Permission / activation flags (SavedStateHandle-backed) ---
+
+    /** True once the user has granted RECORD_AUDIO permission. Survives process death. */
+    val micPermissionGranted: StateFlow<Boolean> =
+        savedStateHandle.getStateFlow("micPermissionGranted", false)
+
+
+    // --- Keyboard layout selection (transient — user can re-select after process death) ---
+
+    private val _selectedLayout = MutableStateFlow("azerty")
+
+    /** The keyboard layout chosen by the user. Defaults to "azerty". */
+    val selectedLayout: StateFlow<String> = _selectedLayout.asStateFlow()
+
+    // --- Model download progress (transient — download restarts on process death) ---
+
+    /** -1 = not started, 0–99 = in progress, 100 = complete. */
+    private val _downloadProgress = MutableStateFlow(-1)
+    val downloadProgress: StateFlow<Int> = _downloadProgress.asStateFlow()
+
+    private val _modelDownloadComplete = MutableStateFlow(false)
+    val modelDownloadComplete: StateFlow<Boolean> = _modelDownloadComplete.asStateFlow()
+
+    private val _downloadError = MutableStateFlow<String?>(null)
+    val downloadError: StateFlow<String?> = _downloadError.asStateFlow()
+
+    /** True while the downloaded archive is being extracted (Parakeet models only). */
+    private val _isExtracting = MutableStateFlow(false)
+    val isExtracting: StateFlow<Boolean> = _isExtracting.asStateFlow()
+
+    // --- Public actions ---
+
+    /** Grant or revoke microphone permission state. Persisted via SavedStateHandle. */
+    fun setMicPermissionGranted(granted: Boolean) {
+        savedStateHandle["micPermissionGranted"] = granted
+    }
+
+
+    /** Change the selected keyboard layout preference. */
+    fun setLayout(layout: String) {
+        _selectedLayout.value = layout
+    }
+
+    /**
+     * Advance to the next onboarding step, respecting validation guards:
+     * - Step 5: blocked until model download completes.
+     * - Step 7: triggers DataStore persistence and completes onboarding.
+     */
+    fun advanceStep() {
+        val step = currentStep.value
+        when {
+            step == 5 && !_modelDownloadComplete.value -> return // Block: download not complete
+            step == 7 -> completeOnboarding()
+            step < 7 -> savedStateHandle["currentStep"] = step + 1
+        }
+    }
+
+    /**
+     * Navigate back to the previous step.
+     * Does nothing when already on step 1.
+     */
+    fun goBack() {
+        val step = currentStep.value
+        if (step > 1) savedStateHandle["currentStep"] = step - 1
+    }
+
+    /**
+     * Begin downloading the default Whisper model and emit progress updates.
+     *
+     * Sets downloadProgress from 0 to 100, then sets modelDownloadComplete to true.
+     * On error, sets downloadError and resets downloadProgress to -1.
+     */
+    fun startModelDownload() {
+        _downloadProgress.value = 0
+        _downloadError.value = null
+        _isExtracting.value = false
+        viewModelScope.launch {
+            modelDownloader.downloadWithProgress(recommendedKey)
+                .collect { progress ->
+                    when (progress) {
+                        is DownloadProgress.Progress -> {
+                            _downloadProgress.value = progress.percent
+                        }
+                        is DownloadProgress.Extracting -> {
+                            // Parakeet models are tar.bz2 archives — show extraction UI
+                            _downloadProgress.value = 99
+                            _isExtracting.value = true
+                        }
+                        is DownloadProgress.Complete -> {
+                            dataStore.edit { prefs ->
+                                prefs[PreferenceKeys.ACTIVE_MODEL] = recommendedKey
+                            }
+                            _isExtracting.value = false
+                            _downloadProgress.value = 100
+                            _modelDownloadComplete.value = true
+                        }
+                        is DownloadProgress.Error -> {
+                            _isExtracting.value = false
+                            _downloadError.value = progress.message
+                            _downloadProgress.value = -1
+                        }
+                    }
+                }
+        }
+    }
+
+    /** Retry a failed download. Equivalent to calling startModelDownload() again. */
+    fun retryDownload() = startModelDownload()
+
+    /**
+     * Finish onboarding in shared-server mode without requiring a local model download.
+     * The cloud endpoint and session authentication are configured internally.
+     */
+    fun useSharedServer() {
+        viewModelScope.launch {
+            dataStore.edit { prefs ->
+                prefs[PreferenceKeys.KEYBOARD_LAYOUT] = _selectedLayout.value
+                prefs[PreferenceKeys.REMOTE_STT_ENABLED] = true
+                prefs[PreferenceKeys.REMOTE_STT_FALLBACK_LOCAL] = false
+                prefs[PreferenceKeys.HAS_COMPLETED_ONBOARDING] = true
+            }
+        }
+    }
+
+    // --- Private ---
+
+    /**
+     * Persist the selected layout, active model, and onboarding completion flag to DataStore.
+     *
+     * Called when the user taps "Commencer" on step 7. The DataStore write causes AppNavHost
+     * to recompose and switch from the onboarding flow to the main tab layout.
+     */
+    private fun completeOnboarding() {
+        viewModelScope.launch {
+            dataStore.edit { prefs ->
+                prefs[PreferenceKeys.KEYBOARD_LAYOUT] = _selectedLayout.value
+                prefs[PreferenceKeys.ACTIVE_MODEL] = recommendedKey
+                prefs[PreferenceKeys.HAS_COMPLETED_ONBOARDING] = true
+            }
+        }
+    }
+}

@@ -1,0 +1,123 @@
+.recording-overlay {
+  height: 84px;
+  width: 300px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 10px 12px;
+  background: #000000cc;
+  border-radius: 42px;
+  opacity: 0;
+  transition: opacity 300ms ease-out;
+  box-sizing: border-box;
+}
+
+.overlay-middle {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex: 1;
+}
+
+.bars-container {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 2px;
+  height: 64px;
+  width: 100%;
+}
+
+.bar {
+  width: 6px;
+  min-height: 2px;
+  max-height: 64px;
+  border-radius: 3px;
+  flex-shrink: 0;
+}
+
+.recording-overlay.fade-in {
+  opacity: 1;
+}
+
+.transcribing-text {
+  color: white;
+  font-size: 13px;
+  font-family:
+    -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+  animation: transcribing-pulse 1.5s infinite ease-in-out;
+}
+
+@keyframes transcribing-pulse {
+  0%,
+  100% {
+    opacity: 0.6;
+  }
+  50% {
+    opacity: 1;
+  }
+}
+
+.overlay-error {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 9px;
+  padding: 0 14px;
+  animation: overlay-error-in 260ms ease-out both;
+}
+
+.overlay-error-icon {
+  color: #ffb020;
+  flex-shrink: 0;
+}
+
+.overlay-error-text {
+  color: white;
+  font-size: 13px;
+  font-weight: 500;
+  font-family:
+    -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+  line-height: 1.25;
+  text-align: left;
+  /* Wrap onto multiple lines so the message fits inside the pill instead of
+     running edge-to-edge. The pill is 84px tall, so 2–3 lines fit comfortably. */
+  white-space: normal;
+  max-width: 210px;
+}
+
+@keyframes overlay-error-in {
+  0% {
+    opacity: 0;
+    transform: translateY(2px);
+  }
+  100% {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+.cancel-pill {
+  width: 84px;
+  height: 84px;
+  border-radius: 50%;
+  background: #000000cc;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  transition:
+    background-color 150ms ease-out,
+    transform 100ms ease-out;
+  flex-shrink: 0;
+  margin-left: 8px;
+}
+
+.cancel-pill:hover {
+  background: #000000ee;
+  transform: scale(1.08);
+}
+
+.cancel-pill:active {
+  transform: scale(0.95);
+}

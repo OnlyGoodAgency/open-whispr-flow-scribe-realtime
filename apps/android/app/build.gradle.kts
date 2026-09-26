@@ -1,0 +1,196 @@
+plugins {
+    alias(libs.plugins.android.application)
+    alias(libs.plugins.kotlin.android)
+    alias(libs.plugins.kotlin.compose)
+    alias(libs.plugins.hilt)
+    alias(libs.plugins.ksp)
+    alias(libs.plugins.licensee)
+}
+
+android {
+    namespace = "dev.pivisolutions.dictus"
+    compileSdk = 35
+
+    signingConfigs {
+        create("release") {
+            val keystorePath = System.getenv("SIGNING_KEYSTORE_PATH")
+            val keyAlias = System.getenv("SIGNING_KEY_ALIAS")
+            val keyPassword = System.getenv("SIGNING_KEY_PASSWORD")
+            val storePassword = System.getenv("SIGNING_STORE_PASSWORD")
+            if (keystorePath != null) {
+                storeFile = file(keystorePath)
+                this.storePassword = storePassword
+                this.keyAlias = keyAlias
+                this.keyPassword = keyPassword
+            }
+        }
+    }
+
+    defaultConfig {
+        applicationId = "app.openwhisperflow.client"
+        minSdk = 29
+        targetSdk = 35
+        versionCode = 6
+        versionName = "1.0.5"
+        val ciVersionCode = System.getenv("VERSION_CODE")?.toIntOrNull()
+        val ciVersionName = System.getenv("VERSION_NAME")
+        if (ciVersionCode != null) versionCode = ciVersionCode
+        if (ciVersionName != null) versionName = ciVersionName
+
+        // These values are public client configuration, not privileged secrets.
+        // CI/local builds can override either value with a Gradle property or
+        // environment variable of the same name.
+        val supabaseUrl = providers.gradleProperty("SUPABASE_URL")
+            .orElse(providers.environmentVariable("SUPABASE_URL"))
+            .orElse("https://ytsxbnfrxkycmwnltqse.supabase.co")
+            .get()
+        val supabasePublishableKey = providers.gradleProperty("SUPABASE_PUBLISHABLE_KEY")
+            .orElse(providers.environmentVariable("SUPABASE_PUBLISHABLE_KEY"))
+            .orElse("sb_publishable_MkmpxjZHkvi3sFedaQ7hgQ_tqeEUCWg")
+            .get()
+        fun buildConfigString(value: String): String =
+            "\"${value.replace("\\", "\\\\").replace("\"", "\\\"")}\""
+        buildConfigField("String", "SUPABASE_URL", buildConfigString(supabaseUrl))
+        val cloudGatewayUrl = providers.gradleProperty("CLOUD_GATEWAY_URL")
+            .orElse(providers.environmentVariable("CLOUD_GATEWAY_URL"))
+            .orElse("https://dbjycf5wki3jqppb73cp9xji.187.52.126.169.sslip.io")
+            .get()
+        buildConfigField("String", "CLOUD_GATEWAY_URL", buildConfigString(cloudGatewayUrl))
+        buildConfigField(
+            "String",
+            "SUPABASE_PUBLISHABLE_KEY",
+            buildConfigString(supabasePublishableKey),
+        )
+    }
+
+    buildTypes {
+        release {
+            signingConfig = signingConfigs.getByName("release")
+            isMinifyEnabled = false
+        }
+    }
+
+    buildFeatures {
+        compose = true
+        buildConfig = true
+    }
+
+    androidResources {
+        generateLocaleConfig = true
+    }
+
+    compileOptions {
+        sourceCompatibility = JavaVersion.VERSION_17
+        targetCompatibility = JavaVersion.VERSION_17
+    }
+
+    kotlinOptions {
+        jvmTarget = "17"
+    }
+
+    lint {
+        baseline = file("lint-baseline.xml")
+    }
+
+    testOptions {
+        unitTests {
+            isIncludeAndroidResources = true
+        }
+    }
+
+    packaging {
+        jniLibs {
+            pickFirsts += setOf("**/libc++_shared.so")
+        }
+    }
+}
+
+ksp {
+    arg("room.schemaLocation", "$projectDir/schemas")
+}
+
+licensee {
+    allow("Apache-2.0")
+    allow("MIT")
+    allow("CC-BY-4.0")
+    allow("BSD-2-Clause")
+    allow("BSD-3-Clause")
+}
+
+// Copy licensee artifacts.json into APK assets so LicencesScreen can read it at runtime.
+// The licensee plugin generates the file in build/reports/ but does not bundle it as an asset.
+androidComponents {
+    onVariants { variant ->
+        val variantName = variant.name
+        val capitalizedVariant = variantName.replaceFirstChar { it.uppercase() }
+        val outputDir = layout.buildDirectory.dir("generated/licensee_assets/$variantName")
+
+        val copyTask = tasks.register("copyLicenseeAssets$capitalizedVariant") {
+            dependsOn("licenseeAndroid$capitalizedVariant")
+            inputs.file(layout.buildDirectory.file("reports/licensee/android$capitalizedVariant/artifacts.json"))
+            outputs.dir(outputDir)
+            doLast {
+                val src = layout.buildDirectory.file("reports/licensee/android$capitalizedVariant/artifacts.json").get().asFile
+                val dest = outputDir.get().asFile.resolve("app/cash/licensee/artifacts.json")
+                dest.parentFile.mkdirs()
+                src.copyTo(dest, overwrite = true)
+            }
+        }
+
+        variant.sources.assets?.addStaticSourceDirectory(outputDir.get().asFile.absolutePath)
+
+        tasks.matching { it.name == "merge${capitalizedVariant}Assets" }.configureEach {
+            dependsOn(copyTask)
+        }
+
+        // Every lint task that scans generated assets must wait for the copied report.
+        tasks.matching {
+            (it.name.startsWith("lint") || it.name.contains("Lint")) &&
+                it.name.contains(capitalizedVariant)
+        }.configureEach {
+            dependsOn(copyTask)
+        }
+    }
+}
+
+dependencies {
+    implementation(project(":core"))
+    implementation(project(":ime"))
+    implementation(project(":whisper"))
+    implementation(project(":asr"))
+    implementation(libs.okhttp)
+    implementation("org.apache.commons:commons-compress:1.26.1")
+    implementation(libs.navigation.compose)
+    implementation(libs.datastore.preferences)
+    implementation(libs.lifecycle.viewmodel.compose)
+    implementation(libs.coroutines.android)
+    implementation(libs.compose.material.icons.extended)
+
+    implementation(platform(libs.compose.bom))
+    implementation(libs.compose.ui)
+    implementation(libs.compose.material3)
+    implementation(libs.activity.compose)
+    implementation(libs.hilt.android)
+    implementation(libs.hilt.navigation.compose)
+    ksp(libs.hilt.compiler)
+    implementation(libs.timber)
+    implementation(libs.core.ktx)
+    implementation(libs.lifecycle.runtime.ktx)
+    implementation(libs.androidx.appcompat)
+    implementation(libs.room.runtime)
+    implementation(libs.room.ktx)
+    ksp(libs.room.compiler)
+
+    debugImplementation(libs.compose.ui.tooling)
+
+    testImplementation(libs.junit)
+    testImplementation(platform(libs.compose.bom))
+    testImplementation(libs.compose.ui.test.junit4)
+    testImplementation(libs.robolectric)
+    testImplementation(libs.coroutines.test)
+    testImplementation(libs.androidx.test.core)
+    testImplementation(libs.androidx.test.ext.junit)
+    testImplementation(libs.okhttp.mockwebserver)
+    testImplementation(libs.room.testing)
+    debugImplementation(libs.compose.ui.test.manifest)
+}

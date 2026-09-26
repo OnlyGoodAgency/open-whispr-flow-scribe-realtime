@@ -1,0 +1,164 @@
+package dev.pivisolutions.dictus.ui.settings
+
+import androidx.compose.foundation.background
+import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.lazy.items
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.automirrored.filled.ArrowBack
+import androidx.compose.material.icons.filled.MoreVert
+import androidx.compose.material3.DropdownMenu
+import androidx.compose.material3.DropdownMenuItem
+import androidx.compose.material3.Icon
+import androidx.compose.material3.IconButton
+import androidx.compose.material3.Text
+import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateListOf
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
+import androidx.compose.ui.Alignment
+import androidx.compose.ui.Modifier
+import androidx.compose.ui.platform.LocalClipboardManager
+import androidx.compose.ui.res.stringResource
+import androidx.compose.ui.text.AnnotatedString
+import androidx.compose.ui.text.font.FontFamily
+import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.sp
+import dev.pivisolutions.dictus.R
+import dev.pivisolutions.dictus.core.logging.TimberSetup
+import dev.pivisolutions.dictus.core.theme.LocalDictusColors
+import androidx.compose.material3.MaterialTheme
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.withContext
+
+/**
+ * Full-screen debug log viewer.
+ *
+ * Reads log lines from [TimberSetup.getLogFile] and displays them in a scrollable
+ * [LazyColumn]. Each line is rendered in monospace font for easy reading of timestamps.
+ *
+ * Top bar has a back arrow, title "Debug Logs", and a 3-dot overflow menu with two actions:
+ * - "Effacer" — clears the log file and the displayed list
+ * - "Copier"  — copies all log lines to the system clipboard
+ *
+ * WHY LaunchedEffect(Unit): The log file is read once when the screen enters composition.
+ * IO is dispatched to Dispatchers.IO to avoid blocking the main thread.
+ * A full live-tail feature is out of scope for this phase.
+ */
+@Composable
+fun DebugLogsScreen(onBack: () -> Unit) {
+    val logFile = TimberSetup.getLogFile()
+    val lines = remember { mutableStateListOf<String>() }
+    var showMenu by remember { mutableStateOf(false) }
+    val clipboardManager = LocalClipboardManager.current
+
+    LaunchedEffect(Unit) {
+        val fileLines = withContext(Dispatchers.IO) {
+            logFile?.readLines() ?: emptyList()
+        }
+        lines.addAll(fileLines)
+    }
+
+    Box(
+        modifier = Modifier
+            .fillMaxSize()
+            .background(MaterialTheme.colorScheme.background),
+    ) {
+        LazyColumn(
+            modifier = Modifier
+                .fillMaxSize()
+                .padding(top = 56.dp),
+        ) {
+            if (lines.isEmpty()) {
+                item {
+                    Box(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(32.dp),
+                        contentAlignment = Alignment.Center,
+                    ) {
+                        Text(
+                            text = stringResource(R.string.debug_logs_empty),
+                            color = LocalDictusColors.current.textSecondary,
+                            fontSize = 16.sp,
+                        )
+                    }
+                }
+            } else {
+                items(lines) { line ->
+                    Text(
+                        text = line,
+                        fontSize = 11.sp,
+                        fontFamily = FontFamily.Monospace,
+                        color = MaterialTheme.colorScheme.onBackground,
+                        modifier = Modifier.padding(horizontal = 12.dp, vertical = 1.dp),
+                    )
+                }
+            }
+        }
+
+        // Top bar
+        Row(
+            modifier = Modifier
+                .fillMaxWidth()
+                .background(MaterialTheme.colorScheme.background)
+                .padding(horizontal = 4.dp, vertical = 4.dp),
+            verticalAlignment = Alignment.CenterVertically,
+        ) {
+            IconButton(onClick = onBack) {
+                Icon(
+                    imageVector = Icons.AutoMirrored.Filled.ArrowBack,
+                    contentDescription = stringResource(R.string.debug_logs_back_cd),
+                    tint = MaterialTheme.colorScheme.onBackground,
+                )
+            }
+            Text(
+                text = stringResource(R.string.debug_logs_title),
+                color = MaterialTheme.colorScheme.onBackground,
+                fontSize = 17.sp,
+                fontWeight = FontWeight.SemiBold,
+                modifier = Modifier.weight(1f),
+            )
+            Spacer(modifier = Modifier.size(4.dp))
+            Box {
+                IconButton(onClick = { showMenu = true }) {
+                    Icon(
+                        imageVector = Icons.Default.MoreVert,
+                        contentDescription = stringResource(R.string.debug_logs_menu_cd),
+                        tint = MaterialTheme.colorScheme.onBackground,
+                    )
+                }
+                DropdownMenu(
+                    expanded = showMenu,
+                    onDismissRequest = { showMenu = false },
+                ) {
+                    DropdownMenuItem(
+                        text = { Text(stringResource(R.string.debug_logs_clear)) },
+                        onClick = {
+                            showMenu = false
+                            logFile?.writeText("")
+                            lines.clear()
+                        },
+                    )
+                    DropdownMenuItem(
+                        text = { Text(stringResource(R.string.debug_logs_copy)) },
+                        onClick = {
+                            showMenu = false
+                            clipboardManager.setText(AnnotatedString(lines.joinToString("\n")))
+                        },
+                    )
+                }
+            }
+        }
+    }
+}

@@ -1,0 +1,15 @@
+.env
+*.log
+node_modules/
+dist/
+target/
+build/
+.gradle/
+.cxx/
+local.properties
+*.apk
+*.aab
+__pycache__/
+.pytest_cache/
+*.pyc
+.tmp-apk-tools/

@@ -1,0 +1,97 @@
+<?xml version="1.0" encoding="utf-8"?>
+<manifest xmlns:android="http://schemas.android.com/apk/res/android">
+
+    <uses-permission android:name="android.permission.RECORD_AUDIO" />
+    <uses-permission android:name="android.permission.FOREGROUND_SERVICE" />
+    <uses-permission android:name="android.permission.FOREGROUND_SERVICE_MICROPHONE" />
+    <uses-permission android:name="android.permission.POST_NOTIFICATIONS" />
+    <uses-permission android:name="android.permission.INTERNET" />
+
+    <application
+        android:name=".DictusApplication"
+        android:allowBackup="false"
+        android:dataExtractionRules="@xml/data_extraction_rules"
+        android:fullBackupContent="@xml/backup_rules"
+        android:icon="@mipmap/ic_launcher"
+        android:roundIcon="@mipmap/ic_launcher_round"
+        android:label="OpenWhisperFlow"
+        android:supportsRtl="true"
+        android:theme="@style/Theme.AppCompat.NoActionBar">
+
+        <activity
+            android:name=".MainActivity"
+            android:exported="true"
+            android:theme="@style/Theme.AppCompat.NoActionBar">
+            <intent-filter>
+                <action android:name="android.intent.action.MAIN" />
+                <category android:name="android.intent.category.LAUNCHER" />
+            </intent-filter>
+        </activity>
+
+        <!--
+            A visible Activity is required when microphone capture starts from another app on
+            Android 14+. It is transparent and immediately finishes after forwarding the user's
+            floating-mic tap to DictationService, returning focus to the original editor.
+        -->
+        <activity
+            android:name=".accessibility.FloatingMicStartActivity"
+            android:excludeFromRecents="true"
+            android:exported="false"
+            android:noHistory="true"
+            android:theme="@style/Theme.OpenWhisperFlow.Transparent" />
+
+        <service
+            android:name=".service.DictationService"
+            android:foregroundServiceType="microphone"
+            android:exported="false" />
+
+        <service
+            android:name=".accessibility.FloatingMicAccessibilityService"
+            android:description="@string/floating_mic_service_description"
+            android:exported="true"
+            android:label="@string/floating_mic_service_name"
+            android:permission="android.permission.BIND_ACCESSIBILITY_SERVICE">
+            <intent-filter>
+                <action android:name="android.accessibilityservice.AccessibilityService" />
+            </intent-filter>
+            <meta-data
+                android:name="android.accessibilityservice"
+                android:resource="@xml/floating_mic_accessibility_service" />
+        </service>
+
+        <!--
+            FileProvider for sharing the debug log ZIP via the Android share sheet.
+
+            WHY android:exported="false": The provider must not be exported to other apps
+            directly — access is granted per-request via FLAG_GRANT_READ_URI_PERMISSION
+            on the share intent. Exported=false with grantUriPermissions=true is the
+            correct combination for a one-shot file share.
+        -->
+        <!--
+            AppLocalesMetadataHolderService enables locale persistence on API 24-32.
+            On API 33+, the system persists locale selections natively.
+            android:enabled="false" means it won't run as an actual service —
+            AppCompat reads its metadata at startup to restore the saved locale.
+        -->
+        <service
+            android:name="androidx.appcompat.app.AppLocalesMetadataHolderService"
+            android:enabled="false"
+            android:exported="false">
+            <meta-data
+                android:name="autoStoreLocales"
+                android:value="true" />
+        </service>
+
+        <provider
+            android:name="androidx.core.content.FileProvider"
+            android:authorities="${applicationId}.fileprovider"
+            android:exported="false"
+            android:grantUriPermissions="true">
+            <meta-data
+                android:name="android.support.FILE_PROVIDER_PATHS"
+                android:resource="@xml/file_paths" />
+        </provider>
+
+    </application>
+
+</manifest>
