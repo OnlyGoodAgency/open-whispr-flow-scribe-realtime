@@ -65,6 +65,8 @@ import dev.pivisolutions.dictus.core.logging.TimberSetup
 import dev.pivisolutions.dictus.core.theme.DictusColors
 import dev.pivisolutions.dictus.core.theme.LocalDictusColors
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.OutlinedTextField
+import dev.pivisolutions.dictus.core.whisper.DictationVocabulary
 
 /**
  * Full settings screen with 4 sections: TRANSCRIPTION, CLAVIER, APPARENCE, A PROPOS.
@@ -90,6 +92,10 @@ fun SettingsScreen(
     val language by viewModel.language.collectAsState()
     val remoteSttEnabled by viewModel.remoteSttEnabled.collectAsState()
     val remoteSttFallbackLocal by viewModel.remoteSttFallbackLocal.collectAsState()
+    val vocabulary by viewModel.dictationVocabulary.collectAsState()
+    val useDictationContext by viewModel.dictationContextEnabled.collectAsState()
+    val learnDictationTerms by viewModel.dictationLearningEnabled.collectAsState()
+    val filterDictationProfanity by viewModel.dictationFilterProfanity.collectAsState()
     val floatingMicDisclosureAccepted by viewModel.floatingMicDisclosureAccepted.collectAsState()
     val keyboardLanguage by viewModel.keyboardLanguage.collectAsState()
     val suggestionsEnabled by viewModel.suggestionsEnabled.collectAsState()
@@ -123,6 +129,8 @@ fun SettingsScreen(
     var showThemePicker by remember { mutableStateOf(false) }
     var showUiLanguagePicker by remember { mutableStateOf(false) }
     var showFloatingMicDisclosure by remember { mutableStateOf(false) }
+    var showVocabulary by remember { mutableStateOf(false) }
+    var vocabularyDraft by remember { mutableStateOf("") }
 
     fun openAccessibilitySettings() {
         val intent = Intent(Settings.ACTION_ACCESSIBILITY_SETTINGS)
@@ -164,6 +172,36 @@ fun SettingsScreen(
                     label = stringResource(R.string.settings_remote_stt_fallback),
                     checked = remoteSttFallbackLocal,
                     onToggle = viewModel::toggleRemoteSttFallback,
+                )
+                SettingDivider()
+                SettingPickerRow(
+                    label = stringResource(R.string.settings_dictation_vocabulary),
+                    value = DictationVocabulary.parse(vocabulary).size.toString(),
+                    onClick = { vocabularyDraft = vocabulary; showVocabulary = true },
+                )
+                SettingDivider()
+                SettingToggleRow(
+                    label = stringResource(R.string.settings_dictation_learning),
+                    checked = learnDictationTerms,
+                    onToggle = viewModel::toggleDictationLearning,
+                )
+                SettingDivider()
+                SettingToggleRow(
+                    label = stringResource(R.string.settings_dictation_context),
+                    checked = useDictationContext,
+                    onToggle = viewModel::toggleDictationContext,
+                )
+                Text(stringResource(R.string.settings_dictation_context_description), modifier = Modifier.padding(16.dp), style = MaterialTheme.typography.bodySmall)
+                SettingDivider()
+                SettingToggleRow(
+                    label = stringResource(R.string.settings_dictation_profanity),
+                    checked = filterDictationProfanity,
+                    onToggle = viewModel::toggleDictationProfanity,
+                )
+                SettingDivider()
+                SettingNavRow(
+                    label = stringResource(R.string.settings_dictation_clear_learned),
+                    onClick = viewModel::clearLearnedDictationTerms,
                 )
             }
         }
@@ -324,6 +362,31 @@ fun SettingsScreen(
     }
 
     // --- Bottom sheets ---
+    if (showVocabulary) {
+        AlertDialog(
+            onDismissRequest = { showVocabulary = false },
+            title = { Text(stringResource(R.string.settings_dictation_vocabulary)) },
+            text = {
+                Column {
+                    Text(stringResource(R.string.settings_dictation_vocabulary_hint))
+                    OutlinedTextField(
+                        value = vocabularyDraft,
+                        onValueChange = { if (it.length <= 8200) vocabularyDraft = it },
+                        minLines = 4, maxLines = 8,
+                        modifier = Modifier.fillMaxWidth(),
+                        isError = !DictationVocabulary.isValid(vocabularyDraft),
+                        label = { Text(stringResource(R.string.settings_dictation_vocabulary)) },
+                    )
+                }
+            },
+            confirmButton = {
+                TextButton(enabled = DictationVocabulary.isValid(vocabularyDraft), onClick = { viewModel.setDictationVocabulary(vocabularyDraft); showVocabulary = false }) {
+                    Text(stringResource(R.string.settings_dictation_save))
+                }
+            },
+            dismissButton = { TextButton(onClick = { showVocabulary = false }) { Text(stringResource(R.string.settings_dictation_cancel)) } },
+        )
+    }
 
     if (showUiLanguagePicker) {
         PickerBottomSheet(

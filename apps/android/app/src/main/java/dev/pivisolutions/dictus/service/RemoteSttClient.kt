@@ -18,6 +18,7 @@ internal data class RemoteSttConfig(
     val url: String,
     val apiKey: String,
     val model: String? = "openai/whisper-large-v3-turbo",
+    val cleanupOptions: String? = null,
 )
 
 /** OpenAI-compatible speech-to-text client used by both the app and the IME service. */
@@ -50,6 +51,7 @@ internal class RemoteSttClient(
                 if (!language.isNullOrBlank() && language != "auto") {
                     addFormDataPart("language", language)
                 }
+                config.cleanupOptions?.let { addFormDataPart("cleanup_options", it) }
             }
             .build()
 
@@ -64,10 +66,10 @@ internal class RemoteSttClient(
             if (!response.isSuccessful) {
                 throw RemoteSttException("Server returned HTTP ${response.code}", statusCode = response.code)
             }
-            val text = runCatching { JSONObject(body).optString("text") }
+            val result = runCatching { JSONObject(body) }
                 .getOrElse { throw RemoteSttException("Server returned invalid JSON", it) }
-                .trim()
-            if (text.isEmpty()) throw RemoteSttException("Server returned an empty transcription")
+            val text = result.optString("text").trim(' ', '\t', '\r')
+            if (text.isEmpty() && !result.optBoolean("discarded", false)) throw RemoteSttException("Server returned an empty transcription")
             text
         }
     }

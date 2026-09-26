@@ -139,6 +139,11 @@ class DictationService : Service(), DictationController {
         RealtimeSttClient(BuildConfig.CLOUD_GATEWAY_URL, sessions::accessToken)
     }
     private var realtimeSession: RealtimeSttClient.Session? = null
+    private var cleanupContext = ""
+
+    override fun setCleanupContext(text: String) {
+        cleanupContext = text.take(1000)
+    }
 
     /**
      * Local binder for same-process binding.
@@ -323,6 +328,7 @@ class DictationService : Service(), DictationController {
      * @return FloatArray of captured audio samples, or empty array if not recording.
      */
     override fun stopRecording(): FloatArray {
+        cleanupContext = ""
         realtimeSession?.cancel()
         realtimeSession = null
         captureStartJob?.cancel()
@@ -346,6 +352,7 @@ class DictationService : Service(), DictationController {
      * Returns to idle state without producing any audio output.
      */
     override fun cancelRecording() {
+        cleanupContext = ""
         if (soundEnabled) soundPlayer.playCancel()
         stopRecordingInternal(discard = true)
         stopForeground(STOP_FOREGROUND_REMOVE)
@@ -367,6 +374,8 @@ class DictationService : Service(), DictationController {
         if (_state.value !is DictationState.Recording) return null
         val liveSession = realtimeSession
         realtimeSession = null
+        val recordingContext = cleanupContext
+        cleanupContext = ""
         // 1. Stop recording and get audio samples
         captureStartJob?.cancel()
         captureStartJob = null
@@ -408,6 +417,7 @@ class DictationService : Service(), DictationController {
             // 2. Read user preferences at transcription time so changes take effect
             //    without needing a service restart.
             val prefs = dataStore.data.first()
+            val cleanupOptions = DictationCleanupOptions.from(prefs, recordingContext).toString()
             val activeModelKey = prefs[PreferenceKeys.ACTIVE_MODEL] ?: ModelCatalog.DEFAULT_KEY
             val languagePref = prefs[PreferenceKeys.TRANSCRIPTION_LANGUAGE] ?: "auto"
             // "auto" maps to null for whisper.cpp which triggers its own language detection.
@@ -437,10 +447,10 @@ class DictationService : Service(), DictationController {
                         } catch (failure: Exception) {
                             Timber.tag("RealtimeDictation").w("using_batch_fallback")
                             Toast.makeText(this, R.string.realtime_using_batch_fallback, Toast.LENGTH_LONG).show()
-                            cloudSttClient.transcribe(samples, whisperLanguage).also { providerName = "REMOTE" }
+                            cloudSttClient.transcribe(samples, whisperLanguage, cleanupOptions).also { providerName = "REMOTE" }
                         }
                     } else {
-                        cloudSttClient.transcribe(samples, whisperLanguage).also { providerName = "REMOTE" }
+                        cloudSttClient.transcribe(samples, whisperLanguage, cleanupOptions).also { providerName = "REMOTE" }
                     }
                 } catch (cancellation: CancellationException) {
                     throw cancellation
@@ -467,7 +477,9 @@ class DictationService : Service(), DictationController {
             }
 
             // 6. Post-process (trim + punctuation)
-            val processedText = TextPostProcessor.process(rawText)
+            val processedText = if (providerName == "REALTIME" || providerName == "REMOTE") {
+                TextPostProcessor.processCloud(rawText)
+            } else TextPostProcessor.process(rawText)
             Timber.d(PrivacySafeLog.transcriptionProcessed(rawText, processedText))
 
             if (processedText.isNotEmpty()) {
@@ -623,6 +635,7 @@ class DictationService : Service(), DictationController {
      * Internal helper to stop recording, optionally discarding samples.
      */
     private fun stopRecordingInternal(discard: Boolean) {
+        cleanupContext = ""
         realtimeSession?.cancel()
         realtimeSession = null
         captureStartJob?.cancel()
@@ -654,7 +667,7 @@ class DictationService : Service(), DictationController {
                 if (prefs[PreferenceKeys.REMOTE_STT_ENABLED] == true) {
                     val language = prefs[PreferenceKeys.TRANSCRIPTION_LANGUAGE]?.takeIf { it != "auto" }
                     lateinit var session: RealtimeSttClient.Session
-                    session = realtimeSttClient.start(serviceScope, language) { text ->
+                    session = realtimeSttClient.start(serviceScope, language, DictationCleanupOptions.from(prefs, cleanupContext)) { text ->
                         serviceScope.launch {
                             if (realtimeSession === session) {
                                 _state.update { current ->

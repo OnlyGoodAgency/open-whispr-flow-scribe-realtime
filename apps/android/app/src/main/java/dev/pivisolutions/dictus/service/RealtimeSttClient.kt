@@ -29,12 +29,13 @@ internal class RealtimeSttClient(
         .pingInterval(20, TimeUnit.SECONDS)
         .build(),
 ) {
-    fun start(scope: CoroutineScope, language: String?, onText: (String) -> Unit): Session =
-        Session(scope, language, onText).also { it.start() }
+    fun start(scope: CoroutineScope, language: String?, cleanup: JSONObject? = null, onText: (String) -> Unit): Session =
+        Session(scope, language, cleanup, onText).also { it.start() }
 
     internal inner class Session(
         private val scope: CoroutineScope,
         private val language: String?,
+        private val cleanup: JSONObject?,
         private val onText: (String) -> Unit,
     ) {
         private val chunks = Channel<ByteArray>(50)
@@ -145,6 +146,7 @@ internal class RealtimeSttClient(
                 override fun onOpen(webSocket: WebSocket, response: Response) {
                     webSocket.send(JSONObject().put("type", "start").apply {
                         if (!language.isNullOrBlank() && language != "auto") put("language", language)
+                        cleanup?.let { put("cleanup", it) }
                     }.toString())
                 }
 
@@ -166,8 +168,8 @@ internal class RealtimeSttClient(
                             }
                             "committed" -> onText(text.commit(event.optString("text")))
                             "final" -> {
-                                val final = event.optString("text").trim()
-                                if (final.isBlank()) throw RealtimeSttException("empty_transcription")
+                                val final = event.optString("text").trim(' ', '\t', '\r')
+                                if (final.isBlank() && !event.optBoolean("discarded", false)) throw RealtimeSttException("empty_transcription")
                                 result.complete(final)
                                 Timber.tag("RealtimeDictation").i("completed total_ms=%d", elapsedMs())
                                 webSocket.close(1000, null)

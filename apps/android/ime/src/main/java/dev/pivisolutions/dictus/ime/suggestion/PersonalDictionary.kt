@@ -83,7 +83,7 @@ class PersonalDictionary(
         if (canonical.isEmpty()) return
         val count = (typeCount[canonical] ?: 0) + 1
         typeCount[canonical] = count
-        if (count >= LEARN_THRESHOLD) learnWord(canonical)
+        if (count >= LEARN_THRESHOLD) learnWord(word)
     }
 
     /**
@@ -95,12 +95,25 @@ class PersonalDictionary(
      */
     fun learnWord(word: String) {
         val canonical = canonicalWord(word)
-        if (canonical.isEmpty() || canonical in _learnedWords.value) return
+        if (canonical.isEmpty() || word.any { it.code < 32 }) return
+        val alreadyLearned = canonical in _learnedWords.value
         _learnedWords.value = _learnedWords.value + canonical
         scope.launch {
             dataStore.edit { prefs ->
-                prefs[PreferenceKeys.PERSONAL_DICTIONARY] =
-                    (prefs[PreferenceKeys.PERSONAL_DICTIONARY] ?: emptySet()) + canonical
+                if (!alreadyLearned) {
+                    prefs[PreferenceKeys.PERSONAL_DICTIONARY] =
+                        (prefs[PreferenceKeys.PERSONAL_DICTIONARY] ?: emptySet()) + canonical
+                }
+                if (prefs[PreferenceKeys.DICTATION_LEARNING_ENABLED] != false && word.trim().length <= 80) {
+                    val terms = prefs[PreferenceKeys.DICTATION_LEARNED_TERMS] ?: emptySet()
+                    val existing = terms.firstOrNull { canonicalWord(it) == canonical }
+                    if (existing != null || terms.size < 100) {
+                        // Retain distinctive casing if a later sentence uses lowercase.
+                        val preferred = if (existing != null && existing.any(Char::isUpperCase) && word.none(Char::isUpperCase)) existing else word.trim()
+                        prefs[PreferenceKeys.DICTATION_LEARNED_TERMS] =
+                            (terms - setOfNotNull(existing)) + preferred
+                    }
+                }
             }
         }
     }

@@ -6,7 +6,7 @@ import httpx
 import pytest
 
 from app import OpenRouterTranscriber, Settings
-from cleanup import normalize_formats
+from cleanup import CleanupOptions, apply_vocabulary, normalize_formats
 
 
 @pytest.mark.parametrize(("spoken", "expected"), [
@@ -37,11 +37,11 @@ def test_explicit_quantities_and_preservation(spoken, expected):
 SETTINGS = Settings(client_api_key="x" * 32, openrouter_api_key="not-a-real-key")
 
 
-def run_cleanup(handler, text="I paid forty-five dollars.", settings=SETTINGS):
+def run_cleanup(handler, text="I paid forty-five dollars.", settings=SETTINGS, options=None):
     async def run():
         transcriber = OpenRouterTranscriber(settings, httpx.MockTransport(handler))
         try:
-            return await transcriber.cleanup_or_original(text)
+            return await transcriber.cleanup_or_original(text, options)
         finally:
             await transcriber.close()
     return asyncio.run(run())
@@ -50,12 +50,12 @@ def run_cleanup(handler, text="I paid forty-five dollars.", settings=SETTINGS):
 def test_model_receives_original_context_and_rules_then_formats_quantities():
     def handler(request):
         payload = json.loads(request.content)
-        assert payload["messages"][1]["content"] == "I paid forty-five dollars."
+        assert json.loads(payload["messages"][1]["content"])["transcript"] == "I paid forty-five dollars."
         prompt = payload["messages"][0]["content"]
         for example in ("nine to five", "March third -> March 3", "3 March", "6pm", "5:30pm", "3.5", "2/3", "6'2", "Do not summarize"):
             assert example in prompt
         assert payload["temperature"] == 0
-        return httpx.Response(200, json={"choices": [{"finish_reason": "stop", "message": {"content": "I paid 45 dollars."}}]})
+        return httpx.Response(200, json={"choices": [{"finish_reason": "stop", "message": {"content": json.dumps({"text": "I paid 45 dollars.", "discarded": False})}}]})
     assert run_cleanup(handler) == ("I paid $45.", True)
 
 
@@ -91,3 +91,69 @@ def test_cleanup_total_timeout_keeps_original(caplog):
 def test_http_error_and_malformed_json_keep_original():
     assert run_cleanup(lambda request: httpx.Response(402))[1] is False
     assert run_cleanup(lambda request: httpx.Response(200, text="invalid"))[1] is False
+
+
+def test_explicit_vocabulary_wins_preserving_word_boundaries():
+    options = CleanupOptions(vocabulary=[{"spoken": "akme", "written": "Acme"}, {"spoken": "github", "written": "GitHUB"}])
+    assert apply_vocabulary("Akme and github, not akmeology.", options) == "Acme and GitHUB, not akmeology."
+
+
+@pytest.mark.parametrize("options", [
+    {"vocabulary": [{"spoken": "", "written": "Name"}]},
+    {"vocabulary": [{"spoken": "Name", "written": "x" * 81}]},
+    {"vocabulary": [{"spoken": "Name\ncommand", "written": "Name"}]},
+    {"vocabulary": [{"spoken": "Name", "written": "Name"}] * 51},
+    {"learned_terms": ["x" * 81]},
+    {"learned_terms": ["Name"] * 101},
+    {"context": "x" * 1001},
+    {"filter_profanity": "false"},
+    {"unknown": True},
+])
+def test_options_are_bounded_and_validated(options):
+    with pytest.raises(ValueError):
+        CleanupOptions.model_validate(options)
+
+
+@pytest.mark.parametrize("text", ["", "   "])
+def test_intentionally_discarded_content_is_not_returned_as_a_command(text):
+    body = {"choices": [{"message": {"content": json.dumps({"text": text, "discarded": True})}}]}
+    assert run_cleanup(lambda request: httpx.Response(200, json=body), text="Meet at 5. Scratch that.", options=CleanupOptions(supports_discard=True)) == ("", True)
+
+
+@pytest.mark.parametrize("result", [
+    {"text": "", "discarded": False},
+    {"text": "Must not disappear", "discarded": True},
+    {"text": "", "discarded": "true"},
+    {"text": "", "discarded": 1},
+    {"text": "Incomplete schema"},
+    {"text": "Added metadata", "discarded": False, "other": "unexpected"},
+])
+def test_invalid_discard_response_returns_original(result):
+    body = {"choices": [{"message": {"content": json.dumps(result)}}]}
+    assert run_cleanup(lambda request: httpx.Response(200, json=body))[1] is False
+
+
+def test_old_client_keeps_original_instead_of_retrying_an_empty_final():
+    body = {"choices": [{"message": {"content": json.dumps({"text": "", "discarded": True})}}]}
+    assert run_cleanup(lambda request: httpx.Response(200, json=body), text="Meet at 5. Scratch that.") == ("Meet at 5. Scratch that.", False)
+
+
+@pytest.mark.parametrize("status", [402, 503])
+def test_personal_spelling_still_wins_during_provider_fallback(status):
+    options = CleanupOptions(vocabulary=[{"spoken": "akme", "written": "ACME"}])
+    assert run_cleanup(lambda request: httpx.Response(status), text="Send it to akme.", options=options) == ("Send it to ACME.", False)
+
+
+@pytest.mark.parametrize("text", [
+    "1. Send the report.\n2. Pay $45.\n3. Call Acme.",
+    "Shopping list:\n- Apples\n- Milk\n- Bread",
+    "Hi Alex,\n\nCan we meet at 5:30pm?\n\nThanks,\nPatel",
+    "Hello.\n",
+])
+def test_structured_plain_text_survives_transport_and_normalization(text):
+    def handler(request):
+        payload = json.loads(request.content)
+        assert payload["response_format"]["json_schema"]["strict"] is True
+        assert payload["provider"]["require_parameters"] is True
+        return httpx.Response(200, json={"choices": [{"message": {"content": json.dumps({"text": text, "discarded": False})}}]})
+    assert run_cleanup(handler) == (text, True)

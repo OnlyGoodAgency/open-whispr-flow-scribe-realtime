@@ -1,5 +1,6 @@
 import asyncio
 import base64
+import json
 from datetime import datetime, timedelta, timezone
 from types import SimpleNamespace
 
@@ -133,6 +134,7 @@ def test_converts_multipart_audio_to_openrouter_json() -> None:
         "text": "Kumusta!",
         "model": "openai/whisper-large-v3-turbo",
         "cleaned": False,
+        "discarded": False,
     }
     assert captured["model"] == "openai/whisper-large-v3-turbo"
     assert captured["language"] == "tl"
@@ -191,10 +193,10 @@ def test_cleans_transcript_for_direct_insertion() -> None:
             return httpx.Response(200, json={"text": "um hello there"})
         payload = __import__("json").loads(request.content)
         assert payload["model"] == "openai/gpt-4.1-mini"
-        assert payload["messages"][1]["content"] == "um hello there"
+        assert json.loads(payload["messages"][1]["content"])["transcript"] == "um hello there"
         return httpx.Response(
             200,
-            json={"choices": [{"message": {"content": "Hello there."}}]},
+            json={"choices": [{"message": {"content": json.dumps({"text": "Hello there.", "discarded": False})}}]},
         )
 
     settings = Settings(
@@ -238,3 +240,38 @@ def test_returns_raw_transcript_when_cleanup_fails() -> None:
     assert response.status_code == 200
     assert response.json()["text"] == "raw transcript"
     assert response.json()["cleaned"] is False
+
+
+def test_batch_cleanup_receives_options_and_can_intentionally_discard():
+    def handler(request):
+        if request.url.path.endswith("/audio/transcriptions"):
+            return httpx.Response(200, json={"text": "Meet at 5. Scratch that."})
+        data = json.loads(json.loads(request.content)["messages"][1]["content"])
+        assert data["vocabulary"] == [{"spoken": "akme", "written": "ACME"}]
+        assert data["context"] == "Working with ACME"
+        assert data["filter_profanity"] is True
+        assert "supports_discard" not in data
+        return httpx.Response(200, json={"choices": [{"message": {"content": json.dumps({"text": "", "discarded": True})}}]})
+
+    from dataclasses import replace
+    app = create_app(replace(SETTINGS, cleanup_enabled=True), httpx.MockTransport(handler))
+    with TestClient(app) as client:
+        response = client.post("/v1/audio/transcriptions",
+            headers={"Authorization": f"Bearer {SETTINGS.client_api_key}"},
+            files={"file": ("sample.wav", b"RIFFaudio", "audio/wav")},
+            data={"cleanup_options": json.dumps({"vocabulary": [{"spoken": "akme", "written": "ACME"}], "context": "Working with ACME", "filter_profanity": True, "supports_discard": True})})
+    assert response.status_code == 200
+    assert response.json()["text"] == ""
+    assert response.json()["discarded"] is True
+
+
+def test_bad_cleanup_options_do_not_upload_audio_to_a_provider():
+    def handler(request):
+        raise AssertionError("invalid options must be rejected before upstream calls")
+    with TestClient(create_app(SETTINGS, httpx.MockTransport(handler))) as client:
+        response = client.post("/v1/audio/transcriptions",
+            headers={"Authorization": f"Bearer {SETTINGS.client_api_key}"},
+            files={"file": ("sample.wav", b"RIFFaudio", "audio/wav")},
+            data={"cleanup_options": json.dumps({"context": "x" * 1001})})
+    assert response.status_code == 400
+    assert "x" * 100 not in response.text

@@ -19,6 +19,13 @@ object TextPostProcessor {
     private val REPEATED_SPACES = Regex("[ \\t]{2,}")
     private val LINE_END_SPACES = Regex("[ \\t]+(?=\\r?\\n)")
 
+    /** Cloud final text has already been formatted; don't punctuate signatures or lists again. */
+    fun processCloud(rawText: String): String {
+        val text = rawText.trim(' ', '\t', '\r')
+        if (text.isBlank()) return ""
+        return if (text.endsWith('\n')) text else "$text "
+    }
+
     fun process(rawText: String): String {
         val trimmed = rawText
             .replace(FILLER_WORD, "")

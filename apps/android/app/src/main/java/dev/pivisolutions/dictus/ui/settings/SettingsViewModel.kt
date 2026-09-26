@@ -9,6 +9,7 @@ import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import dagger.hilt.android.lifecycle.HiltViewModel
 import dev.pivisolutions.dictus.core.preferences.PreferenceKeys
+import dev.pivisolutions.dictus.core.whisper.DictationVocabulary
 import dev.pivisolutions.dictus.ime.input.AutocorrectRuntimePolicy
 import dev.pivisolutions.dictus.ime.language.KeyboardPreferenceResolver
 import dev.pivisolutions.dictus.model.ModelCatalog
@@ -75,6 +76,40 @@ class SettingsViewModel @Inject constructor(
     val remoteSttFallbackLocal: StateFlow<Boolean> = dataStore.data
         .map { it[PreferenceKeys.REMOTE_STT_FALLBACK_LOCAL] ?: true }
         .stateIn(viewModelScope, SharingStarted.Eagerly, true)
+
+    val dictationVocabulary = dataStore.data
+        .map { it[PreferenceKeys.DICTATION_VOCABULARY].orEmpty() }
+        .stateIn(viewModelScope, SharingStarted.Eagerly, "")
+    val dictationContextEnabled = dataStore.data
+        .map { it[PreferenceKeys.DICTATION_CONTEXT_ENABLED] ?: false }
+        .stateIn(viewModelScope, SharingStarted.Eagerly, false)
+    val dictationLearningEnabled = dataStore.data
+        .map { it[PreferenceKeys.DICTATION_LEARNING_ENABLED] ?: true }
+        .stateIn(viewModelScope, SharingStarted.Eagerly, true)
+    val dictationFilterProfanity = dataStore.data
+        .map { it[PreferenceKeys.DICTATION_FILTER_PROFANITY] ?: false }
+        .stateIn(viewModelScope, SharingStarted.Eagerly, false)
+
+    fun setDictationVocabulary(value: String) {
+        if (!DictationVocabulary.isValid(value)) return
+        viewModelScope.launch { dataStore.edit { it[PreferenceKeys.DICTATION_VOCABULARY] = value.trim() } }
+    }
+
+    fun toggleDictationContext() {
+        viewModelScope.launch { dataStore.edit { it[PreferenceKeys.DICTATION_CONTEXT_ENABLED] = !(it[PreferenceKeys.DICTATION_CONTEXT_ENABLED] ?: false) } }
+    }
+
+    fun toggleDictationLearning() {
+        viewModelScope.launch { dataStore.edit { it[PreferenceKeys.DICTATION_LEARNING_ENABLED] = !(it[PreferenceKeys.DICTATION_LEARNING_ENABLED] ?: true) } }
+    }
+
+    fun toggleDictationProfanity() {
+        viewModelScope.launch { dataStore.edit { it[PreferenceKeys.DICTATION_FILTER_PROFANITY] = !(it[PreferenceKeys.DICTATION_FILTER_PROFANITY] ?: false) } }
+    }
+
+    fun clearLearnedDictationTerms() {
+        viewModelScope.launch { dataStore.edit { it.remove(PreferenceKeys.DICTATION_LEARNED_TERMS) } }
+    }
 
     val floatingMicDisclosureAccepted: StateFlow<Boolean> = dataStore.data
         .map { it[PreferenceKeys.FLOATING_MIC_DISCLOSURE_ACCEPTED] ?: false }

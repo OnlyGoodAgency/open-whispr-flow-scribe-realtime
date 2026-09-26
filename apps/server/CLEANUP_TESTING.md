@@ -1,4 +1,4 @@
-# Phase-one cleanup: deployment and acceptance
+# Dictation cleanup: deployment and acceptance
 
 Live Scribe partials and committed phrases remain unchanged while recording.
 After Stop, the complete transcript gets one cleanup request through the existing
@@ -9,8 +9,7 @@ once. If cleanup fails, the original committed transcript is still returned.
 
 From the repository root, review and commit the changes before pushing main to
 the separate realtime repository. Suggested commit name:
-`feat: add bounded final dictation cleanup`.
-This change also includes the previously updated Android gateway URL.
+`feat: add structured dictation cleanup and personal vocabulary`.
 
 In Coolify use:
 
@@ -26,8 +25,44 @@ updated Compose file from Git and redeploy the gateway; changing variables alone
 does not install the new source. `cleanup.py` must be present in the Docker image.
 
 In Android Studio sync Gradle and Run the app on the phone. This rebuild includes
-paragraph preservation and the updated HTTPS gateway address. Build an APK again
-after testing to share the updated client.
+personal vocabulary settings and intentional deletion handling. Build an APK again
+after testing to share the updated client. Existing APKs get most final formatting
+from the updated server, but require a rebuild for the new settings/deletions.
+
+The cloud path now preserves final formatting without adding punctuation to an
+email signature. Offline fallback keeps its existing local processing; it does
+not offer the contextual cloud cleanup rules.
+
+## Configure vocabulary and voice
+
+In Settings enable cloud transcription, then open **Personal vocabulary**. Add
+one term per line, or an alias and exact spelling:
+
+```text
+ClickUp
+akme => ACME
+patell => Patel
+```
+
+Save supports up to 50 entries, each spelling up to 80 characters. Invalid or
+duplicate aliases must be corrected before Save becomes available. Matching
+literal aliases/casing are enforced even if the model times out.
+
+**Learn words I type** starts enabled. It retains up to 100 spelling hints after
+repeated typing or explicit correction rejection using the Dictus keyboard.
+These are hints rather than unconditional fuzzy replacements. Try typing a name
+twice with a space after each, then dictate it. It does not observe another
+keyboard's edits or learn directly from repeated speech. Turn it off to stop
+adding/sending these hints; **Clear learned dictation words** removes them.
+
+**Use nearby text for spelling** starts disabled. If you turn it on, up to 500
+characters before and after the cursor in an eligible active field are sent as
+cloud spelling hints when dictating through the Dictus keyboard. Password/private
+fields are excluded. No entire-screen capture is used, and the context must not
+be copied into the output. Test the same uncommon name with context on/off.
+
+**Filter profanity** starts disabled. When enabled, the model uses `[redacted]`
+for profanity while preserving the surrounding words.
 
 ## Test on a phone
 
@@ -60,6 +95,19 @@ inserted result. Periods at the end are expected; compare formatting and meaning
 | Reference zero zero seven two five. | Retain all five digits, including the two leading zeros. |
 | I had had enough. It was very, very good. | Keep grammatical repetition and deliberate emphasis. |
 | A client name or mixed-language sentence you actually use. | Keep names, personal style, contractions and foreign words. |
+| Tasks. First send the report. Second pay forty-five dollars. Third call Patel. | A three-item numbered list; second item uses $45. |
+| Shopping list. Apples, milk, bread. | Shopping list: followed by three bullet lines. |
+| I bought apples, milk and bread. | A normal sentence can remain a sentence; no forced bullets. |
+| Hi Alex. Can we meet at five thirty PM? Thanks, Patel. | Greeting on its own line, body with 5:30pm, sign-off/name at the bottom. No invented subject/signature. |
+| Send the report. New paragraph. Then call Patel. | Two paragraphs; command words disappear. |
+| Can you send it question mark new line Thanks comma Alex | Question mark and line break; punctuation controls disappear. |
+| Meet at five PM. Delete that last sentence. | Nothing is inserted or saved; no batch retry. Requires updated APK. |
+| Send it today, scratch that, send it tomorrow. | Only the intended tomorrow clause remains. |
+| Email john at acme dot com. | john@acme.com as plain text. |
+| The code is alpha underscore beta slash two. | alpha_beta/2. |
+| My name is P A T E L. A P I. All caps urgent. | Patel, API and URGENT. |
+| Send it to akme through click up. | ACME and ClickUp with the sample vocabulary above. |
+| A sentence with swearing, then repeat with Filter profanity enabled. | Preserved when off; [redacted] when on. |
 
 Also try several paragraphs, a 60-second recording and cancellation. Each
 completed dictation should appear once in the target field/history, with no
@@ -75,11 +123,31 @@ than waiting indefinitely. No raw text, audio or keys are included in timing log
 
 ## Verification scope
 
-Local tests cover deterministic quantities, preservation examples, unchanged live
-events, one final cleanup call, cancellation, provider disconnects, HTTP failures,
+Local tests cover deterministic quantities, exact vocabulary, bounded options,
+structured list/email preservation, unchanged live events, one final cleanup call,
+intentional empty finals, cancellation, provider disconnects, HTTP failures,
 truncated/invalid responses and bounded timeout fallback. Provider transport is
 mocked: these tests do not prove paid-model accuracy for dates, grammar,
 self-corrections or every dialect. Complete the phone checklist after redeploying.
+Text-only cleanup cannot recover digits/words already omitted by speech recognition
+or access pronunciation/pause cues that did not reach the transcript.
 
-Deletion commands, spoken punctuation commands, automatic list/email construction,
-custom vocabulary, learning from edits and screen context are later phases.
+## Check the deployed model
+
+Inside Coolify's **gateway container terminal**, after redeploying:
+
+```sh
+python check_cleanup.py --case numbered-list
+python check_cleanup.py --case email
+python check_cleanup.py --case deletion
+```
+
+Each command makes one billed OpenRouter request using the existing environment
+key. No real recordings or user text are used. `PASS` means the selected synthetic
+example met the critical formatting checks within the configured deadline.
+`cleaned=False` indicates timeout/provider fallback. Review `FAIL` results before
+sharing the APK; passing these examples is not a guarantee for every recording.
+Run `python check_cleanup.py` for the full 11-example set.
+
+All changes still need Git push, gateway redeployment, and rebuilding/installing
+the Android app. No new environment variables or additional API keys are needed.

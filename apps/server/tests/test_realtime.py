@@ -254,8 +254,8 @@ def test_cleanup_runs_once_after_stop_leaving_live_events_untouched():
     def handler(request):
         calls.append(request.url.path)
         payload = json.loads(request.content)
-        assert payload["messages"][1]["content"] == "Hello world. Another phrase."
-        return httpx.Response(200, json={"choices": [{"message": {"content": "Hello world.\n\nAnother phrase."}, "finish_reason": "stop"}]})
+        assert json.loads(payload["messages"][1]["content"])["transcript"] == "Hello world. Another phrase."
+        return httpx.Response(200, json={"choices": [{"message": {"content": json.dumps({"text": "Hello world.\n\nAnother phrase.", "discarded": False})}, "finish_reason": "stop"}]})
 
     connector = FakeConnector()
     app = create_app(replace(SETTINGS, cleanup_enabled=True), httpx.MockTransport(handler), realtime_connector=connector)
@@ -322,7 +322,7 @@ def test_provider_disconnect_after_final_commit_cannot_discard_cleanup():
 
     async def handler(request):
         await asyncio.sleep(0.6)
-        return httpx.Response(200, json={"choices": [{"message": {"content": "Hello world. Another phrase."}}]})
+        return httpx.Response(200, json={"choices": [{"message": {"content": json.dumps({"text": "Hello world. Another phrase.", "discarded": False})}}]})
 
     app = create_app(replace(SETTINGS, cleanup_enabled=True), httpx.MockTransport(handler), realtime_connector=FakeConnector(ClosingProvider()))
     with TestClient(app) as client:
@@ -333,3 +333,34 @@ def test_provider_disconnect_after_final_commit_cannot_discard_cleanup():
             socket.send_json({"type": "finish"})
             assert socket.receive_json()["type"] == "committed"
             assert socket.receive_json() == {"type": "final", "text": "Hello world. Another phrase.", "cleaned": True}
+
+
+def test_realtime_cleanup_options_and_intentional_empty_final():
+    calls = []
+    def handler(request):
+        data = json.loads(json.loads(request.content)["messages"][1]["content"])
+        assert data["vocabulary"] == [{"spoken": "akme", "written": "ACME"}]
+        assert data["learned_terms"] == ["Patel"]
+        calls.append(request.url.path)
+        return httpx.Response(200, json={"choices": [{"message": {"content": json.dumps({"text": "", "discarded": True})}}]})
+    app = create_app(replace(SETTINGS, cleanup_enabled=True), httpx.MockTransport(handler), realtime_connector=FakeConnector())
+    with TestClient(app) as client:
+        with client.websocket_connect("/realtime/transcription", headers=AUTH) as socket:
+            socket.send_json({"type": "start", "cleanup": {"supports_discard": True, "vocabulary": [{"spoken": "akme", "written": "ACME"}], "learned_terms": ["Patel"]}})
+            assert socket.receive_json()["type"] == "ready"
+            socket.send_bytes(bytes(6_400))
+            read_first_phrase(socket)
+            assert calls == []
+            socket.send_json({"type": "finish"})
+            assert socket.receive_json()["type"] == "committed"
+            assert socket.receive_json() == {"type": "final", "text": "", "cleaned": True, "discarded": True}
+    assert calls == ["/api/v1/chat/completions"]
+
+
+def test_invalid_realtime_cleanup_options_do_not_open_provider():
+    connector = FakeConnector()
+    with TestClient(make_app(connector)) as client:
+        with client.websocket_connect("/realtime/transcription", headers=AUTH) as socket:
+            socket.send_json({"type": "start", "cleanup": {"filter_profanity": "false"}})
+            assert socket.receive_json() == {"type": "error", "code": "invalid_request"}
+    assert connector.calls == []

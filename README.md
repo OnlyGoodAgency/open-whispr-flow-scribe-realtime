@@ -194,27 +194,48 @@ slips. Failure, incomplete model output, or timeout returns the original committ
 transcript without re-transcribing the audio. Actual paid-model accuracy and
 Stop-to-result latency must be checked on the deployed service.
 
-### Phase-one dictation cleanup
+### Dictation cleanup and personal vocabulary
 
 The policy in `apps/server/cleanup.py` targets numbers, currencies, dates in spoken
 order, times, percentages, ranges, decimals, fractions, measurements, ordinals,
 version/model identifiers, filler removal, accidental repeats, obvious
-self-corrections, punctuation and paragraph breaks. It preserves idioms, personal
+self-corrections, deletion controls, spoken punctuation/symbols, spelling,
+numbered lists, bullets and email layout. It preserves idioms, personal
 wording, meaningful hedges, unusual names and language switching. Conservative
 local quantity rules enforce `$45`, `£50`, `30%`, `37kg` and `20°` style; contextual
 decisions depend on the cleanup model and aren't guaranteed by a prompt alone.
 
-`TEXT_CLEANUP_ENABLED=false` bypasses the entire step. The default deadline is
+`TEXT_CLEANUP_ENABLED=false` bypasses model cleanup; explicit vocabulary aliases
+can still apply locally in the gateway. The default deadline is
 four seconds, with no retries; this is a latency budget, not a promised response
 time. The gateway logs `cleanup completed duration_ms=...` or
 `cleanup fallback=original duration_ms=...` without text or secrets.
-The Android post-processor preserves the returned paragraphs. Existing APKs
-receive server formatting after redeployment; rebuild for paragraph preservation.
+The Android cloud insertion path preserves the returned paragraphs, lists,
+email signatures and explicit trailing line breaks. Rebuild the Android app for
+the new settings and deletion handling. Old clients do not advertise empty-final
+support, so a cleanup result that deletes everything falls back to their original
+text rather than accidentally triggering a second transcription.
 
-Custom dictionaries, edit learning, screen context, deletion/punctuation commands,
-and automatic list/email construction are later phases. Use the
+Under Settings, enable cloud transcription to access **Personal vocabulary**.
+Enter one preferred spelling per line, or `akme => ACME` for a heard alias, up to
+50 entries. Exact aliases and casing still apply if model cleanup times out.
+**Learn words I type** retains up to 100 spelling hints after repeated typing or
+explicit correction rejection with the Dictus keyboard. It preserves distinctive
+casing; hints do not override explicit vocabulary. Turn it off to stop sending and
+adding learned hints, or clear them from Settings.
+
+**Use nearby text for spelling** is off by default. When enabled, the Dictus
+keyboard sends up to 1,000 characters around the cursor in an eligible active
+field for spelling hints. Password/private fields are excluded; context is never
+inserted as new dictation content. **Filter profanity** is off by default and uses
+`[redacted]` when enabled. No API key or model fields are required in these settings.
+
+This does not read the entire screen, track edits made with other keyboards, or
+automatically learn vocabulary from repeated speech. Those require further input
+integration and validation. Contextual formatting depends on the selected model;
+local mocked tests do not establish accuracy for every accent/language. Use the
 [deployment and phone acceptance checklist](apps/server/CLEANUP_TESTING.md) to
-verify this phase before describing it to a client as fully supported.
+verify the client requirements against the deployed model.
 
 ### Realtime gateway protocol
 
@@ -229,8 +250,14 @@ The gateway emits `partial`, `committed`, `final`, or sanitized `error` events.
 Partial text replaces the current phrase; committed text appends a completed
 phrase. Send `{"type":"finish"}` to flush the last phrase, or `{"type":"cancel"}`
 to discard. The final event contains the full transcript after optional bounded
-cleanup, with `cleaned:true` when cleanup succeeded. Existing clients can ignore
-that extra field. Provider credentials
+cleanup, with `cleaned:true` when cleanup succeeded. Optional start field `cleanup`
+contains `vocabulary` (spoken/written pairs), `learned_terms`, `context`,
+`filter_profanity`, and `supports_discard`. The batch equivalent is a JSON string
+in multipart field `cleanup_options`. Options are bounded and validated before
+contacting providers. Clients setting `supports_discard:true` must accept
+`{"type":"final","text":"","cleaned":true,"discarded":true}` as a successful
+deletion and insert nothing, without retrying. Old clients omit this capability.
+Provider credentials
 and transcripts are excluded from timing logs.
 
 Android bounds its outbound audio queue. If setup, streaming, or finalization

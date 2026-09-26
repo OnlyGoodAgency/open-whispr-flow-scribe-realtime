@@ -21,6 +21,7 @@ import kotlinx.coroutines.withContext
 import kotlinx.coroutines.withTimeout
 import org.junit.Assert.assertFalse
 import org.junit.Assert.assertTrue
+import org.junit.Assert.assertEquals
 import org.junit.Before
 import org.junit.Rule
 import org.junit.Test
@@ -178,6 +179,30 @@ class PersonalDictionaryTest {
         advanceUntilIdle()
 
         assertTrue(dict.learnedWords.value.isEmpty())
+    }
+
+    @Test fun `dictation vocabulary retains casing and learns again after clearing`() = runTest(testDispatcher) {
+        val dict = PersonalDictionary(dataStore, testScope)
+        dict.recordWordTyped("ClickUp")
+        dict.recordWordTyped("ClickUp")
+        advanceUntilIdle()
+        assertEquals(setOf("ClickUp"), dataStore.data.first()[PreferenceKeys.DICTATION_LEARNED_TERMS])
+        dict.recordWordTyped("clickup")
+        advanceUntilIdle()
+        assertEquals(setOf("ClickUp"), dataStore.data.first()[PreferenceKeys.DICTATION_LEARNED_TERMS])
+        dataStore.edit { it[PreferenceKeys.DICTATION_LEARNED_TERMS] = emptySet() }
+        dict.recordWordTyped("ClickUp")
+        advanceUntilIdle()
+        assertEquals(setOf("ClickUp"), dataStore.data.first()[PreferenceKeys.DICTATION_LEARNED_TERMS])
+    }
+
+    @Test fun `disabled dictation learning does not store speech hints`() = runTest(testDispatcher) {
+        dataStore.edit { it[PreferenceKeys.DICTATION_LEARNING_ENABLED] = false }
+        val dict = PersonalDictionary(dataStore, testScope)
+        dict.recordWordTyped("ClickUp")
+        dict.recordWordTyped("ClickUp")
+        advanceUntilIdle()
+        assertTrue(dataStore.data.first()[PreferenceKeys.DICTATION_LEARNED_TERMS].isNullOrEmpty())
     }
 
     @Test

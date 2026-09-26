@@ -71,4 +71,16 @@ class TextPostProcessorTest {
         val text = "Right, it works like a charm. I mean, the real issue is cost. Kumusta!"
         assertEquals("$text ", TextPostProcessor.process(text))
     }
+
+    @Test fun `cloud insertion keeps email signature without invented punctuation`() {
+        val email = "Hi Alex,\n\nCan we meet at 5:30pm?\n\nThanks,\nPatel"
+        assertEquals("$email ", TextPostProcessor.processCloud(email))
+    }
+
+    @Test fun `cloud insertion preserves lists explicit final newline and meaningful speech`() {
+        val list = "Tasks:\n1. Pay $45\n2. Call Patel\n"
+        assertEquals(list, TextPostProcessor.processCloud(list))
+        assertEquals("Hmm, probably. ", TextPostProcessor.processCloud("Hmm, probably."))
+        assertEquals("", TextPostProcessor.processCloud(""))
+    }
 }

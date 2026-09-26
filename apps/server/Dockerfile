@@ -8,7 +8,7 @@ WORKDIR /app
 COPY requirements.txt ./
 RUN pip install --no-cache-dir --requirement requirements.txt
 
-COPY app.py realtime.py cleanup.py check_realtime.py ./
+COPY app.py realtime.py cleanup.py check_realtime.py check_cleanup.py ./
 
 RUN useradd --create-home --uid 10001 appuser
 USER appuser

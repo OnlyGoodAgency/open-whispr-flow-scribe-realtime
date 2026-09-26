@@ -280,4 +280,13 @@
     <string name="floating_mic_no_transcription">Aucune parole n’a été détectée.</string>
     <string name="floating_mic_insert_failed">Ce champ de texte n’autorise pas l’insertion de la transcription.</string>
     <string name="floating_mic_settings_unavailable">Les réglages d’accessibilité ne sont pas disponibles sur cet appareil.</string>
+    <string name="settings_dictation_vocabulary">Vocabulaire personnel</string>
+    <string name="settings_dictation_vocabulary_hint">Un terme par ligne, jusqu’à 50 termes. Pour corriger un nom mal reconnu : Akme =&gt; Acme. Chaque orthographe peut contenir jusqu’à 80 caractères.</string>
+    <string name="settings_dictation_learning">Apprendre les mots que je tape</string>
+    <string name="settings_dictation_context">Utiliser le texte voisin pour l’orthographe</string>
+    <string name="settings_dictation_context_description">Avec le clavier Dictus, le texte voisin du champ actif est envoyé avec la dictée cloud pour aider à écrire les noms. Les champs privés et les mots de passe sont exclus.</string>
+    <string name="settings_dictation_profanity">Filtrer les grossièretés</string>
+    <string name="settings_dictation_clear_learned">Effacer les mots appris pour la dictée</string>
+    <string name="settings_dictation_save">Enregistrer</string>
+    <string name="settings_dictation_cancel">Annuler</string>
 </resources>

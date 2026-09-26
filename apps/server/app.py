@@ -3,6 +3,7 @@ from __future__ import annotations
 import asyncio
 import base64
 import hmac
+import json
 import logging
 import os
 import time
@@ -20,7 +21,7 @@ from jwt.exceptions import PyJWTError
 from pydantic import BaseModel
 
 from realtime import RealtimeBridge, RealtimeProviderError
-from cleanup import CLEANUP_PROMPT, normalize_formats
+from cleanup import CLEANUP_PROMPT, CLEANUP_SCHEMA, CleanupOptions, apply_vocabulary, normalize_formats
 
 
 LOGGER = logging.getLogger("openwhisperflow")
@@ -99,6 +100,7 @@ class TranscriptionResponse(BaseModel):
     text: str
     model: str
     cleaned: bool
+    discarded: bool = False
 
 
 class ProviderError(Exception):
@@ -242,7 +244,8 @@ class OpenRouterTranscriber:
             raise ProviderError("Transcription provider returned an empty transcription")
         return text
 
-    async def cleanup(self, transcript: str) -> str:
+    async def cleanup(self, transcript: str, options: CleanupOptions | None = None) -> str:
+        options = options or CleanupOptions()
         payload = {
             "model": self.settings.cleanup_model,
             "messages": [
@@ -250,9 +253,11 @@ class OpenRouterTranscriber:
                     "role": "system",
                     "content": CLEANUP_PROMPT,
                 },
-                {"role": "user", "content": transcript},
+                {"role": "user", "content": json.dumps({"transcript": transcript, **options.model_dump(exclude={"supports_discard"})}, ensure_ascii=False)},
             ],
             "temperature": 0,
+            "response_format": CLEANUP_SCHEMA,
+            "provider": {"require_parameters": True},
             # Leave room for long recordings and multilingual tokenization.
             "max_tokens": min(8192, max(1024, len(transcript) + 128)),
         }
@@ -280,27 +285,42 @@ class OpenRouterTranscriber:
             choice = response.json()["choices"][0]
             if choice.get("finish_reason") not in {None, "stop"} or choice["message"].get("refusal"):
                 raise ProviderError("Text cleanup provider returned incomplete text")
-            cleaned = choice["message"]["content"].strip()
+            result = json.loads(choice["message"]["content"])
+            if not isinstance(result, dict) or set(result) != {"text", "discarded"}:
+                raise ProviderError("Text cleanup provider returned invalid fields")
+            cleaned = result["text"]
+            discarded = result["discarded"]
+            if not isinstance(cleaned, str) or type(discarded) is not bool:
+                raise ProviderError("Text cleanup provider returned invalid text")
+            cleaned = cleaned.strip(" \t\r")
+            if discarded != (not cleaned.strip()):
+                raise ProviderError("Text cleanup provider returned inconsistent text")
+            if discarded:
+                cleaned = ""
         except (ValueError, KeyError, IndexError, TypeError, AttributeError) as error:
             raise ProviderError("Text cleanup provider returned invalid JSON") from error
-        if not cleaned:
-            raise ProviderError("Text cleanup provider returned empty text")
-        return normalize_formats(cleaned)
+        return apply_vocabulary(normalize_formats(cleaned), options)
 
-    async def cleanup_or_original(self, transcript: str) -> tuple[str, bool]:
+    async def cleanup_or_original(self, transcript: str, options: CleanupOptions | None = None) -> tuple[str, bool]:
         """One bounded cleanup attempt. Never retry or re-transcribe on failure."""
+        options = options or CleanupOptions()
+        original = apply_vocabulary(transcript, options)
         if not self.settings.cleanup_enabled or not transcript.strip():
-            return transcript, False
+            return original, False
         started = time.monotonic()
         try:
             # HTTP timeouts alone bound inactivity, not the whole request.
             async with asyncio.timeout(min(8.0, max(0.1, self.settings.cleanup_timeout_seconds))):
-                text = await self.cleanup(transcript)
+                text = await self.cleanup(transcript, options)
+            # Old clients interpret an empty final as failure and may re-transcribe it.
+            if not text and not options.supports_discard:
+                LOGGER.info("cleanup fallback=client_compatibility duration_ms=%d", int((time.monotonic() - started) * 1000))
+                return original, False
             LOGGER.info("cleanup completed duration_ms=%d", int((time.monotonic() - started) * 1000))
             return text, True
         except (ProviderError, TimeoutError):
             LOGGER.warning("cleanup fallback=original duration_ms=%d", int((time.monotonic() - started) * 1000))
-            return transcript, False
+            return original, False
 
 
 def detect_audio_format(file: UploadFile) -> str:
@@ -404,10 +424,17 @@ def create_app(
         model: str | None = Form(default=None),
         language: str | None = Form(default=None),
         prompt: str | None = Form(default=None),
+        cleanup_options: str | None = Form(default=None),
         authorization: str | None = Header(default=None),
     ) -> TranscriptionResponse:
         del model  # Model selection is controlled centrally on the server.
         await authorize(authorization)
+        try:
+            if cleanup_options is not None and len(cleanup_options) > 20_000:
+                raise ValueError("Cleanup options too large")
+            options = CleanupOptions.model_validate_json(cleanup_options) if cleanup_options else CleanupOptions()
+        except ValueError as error:
+            raise HTTPException(status_code=400, detail="Invalid cleanup options") from error
 
         audio_format = detect_audio_format(file)
         maximum = application.state.settings.max_upload_mb * 1024 * 1024
@@ -427,8 +454,8 @@ def create_app(
         except ProviderError as error:
             LOGGER.error("STT request failed: %s", error)
             raise HTTPException(status_code=502, detail=str(error)) from error
-        text, cleaned = await application.state.transcriber.cleanup_or_original(text)
-        return TranscriptionResponse(text=text, model=used_model, cleaned=cleaned)
+        text, cleaned = await application.state.transcriber.cleanup_or_original(text, options)
+        return TranscriptionResponse(text=text, model=used_model, cleaned=cleaned, discarded=cleaned and not text)
 
     return application
 

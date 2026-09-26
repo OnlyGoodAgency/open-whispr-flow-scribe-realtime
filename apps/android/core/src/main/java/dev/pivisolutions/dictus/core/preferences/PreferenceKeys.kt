@@ -71,4 +71,10 @@ object PreferenceKeys {
     // --- Personal dictionary (Phase 8) ---
     /** Set of words the user has typed at least twice, persisted across restarts. */
     val PERSONAL_DICTIONARY = stringSetPreferencesKey("personal_dictionary")
+    /** Dictation spelling overrides, preserving exact user casing. */
+    val DICTATION_VOCABULARY = stringPreferencesKey("dictation_vocabulary")
+    val DICTATION_LEARNED_TERMS = stringSetPreferencesKey("dictation_learned_terms")
+    val DICTATION_CONTEXT_ENABLED = booleanPreferencesKey("dictation_context_enabled")
+    val DICTATION_LEARNING_ENABLED = booleanPreferencesKey("dictation_learning_enabled")
+    val DICTATION_FILTER_PROFANITY = booleanPreferencesKey("dictation_filter_profanity")
 }

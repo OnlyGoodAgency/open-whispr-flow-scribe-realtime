@@ -11,6 +11,7 @@ from urllib.parse import urlencode
 
 from fastapi import WebSocket, WebSocketDisconnect
 from websockets.asyncio.client import connect
+from cleanup import CleanupOptions
 
 LOGGER = logging.getLogger("openwhisperflow.realtime")
 PROVIDER_URL = "wss://api.elevenlabs.io/v1/speech-to-text/realtime"
@@ -87,6 +88,7 @@ class RealtimeBridge:
         try:
             async with asyncio.timeout(self.max_seconds):
                 setup = await asyncio.wait_for(client.receive_json(), timeout=10)
+                options = CleanupOptions.model_validate(setup.get("cleanup", {}))
                 language = setup.get("language")
                 if setup.get("type") != "start" or (
                     language is not None and (not isinstance(language, str) or len(language) > 8)
@@ -96,7 +98,7 @@ class RealtimeBridge:
                     await self.await_started(provider)
                     await client.send_json({"type": "ready", "model": "scribe_v2_realtime"})
                     LOGGER.info("ready connect_ms=%d", int((time.monotonic() - started) * 1000))
-                    await self.relay(client, provider, started)
+                    await self.relay(client, provider, started, options)
         except WebSocketDisconnect:
             pass
         except RealtimeProviderError as error:
@@ -116,7 +118,7 @@ class RealtimeBridge:
         with suppress(WebSocketDisconnect, RuntimeError, OSError):
             await client.send_json({"type": "error", "code": code})
 
-    async def relay(self, client: WebSocket, provider, started: float) -> None:
+    async def relay(self, client: WebSocket, provider, started: float, options: CleanupOptions) -> None:
         committed: list[str] = []
         partial = ""
         finish_requested = asyncio.Event()
@@ -226,10 +228,12 @@ class RealtimeBridge:
             await asyncio.gather(transcript_task, return_exceptions=True)
             cleaned = False
             if self.final_cleanup is not None:
-                text, cleaned = await self.final_cleanup(text)
+                text, cleaned = await self.final_cleanup(text, options)
             event = {"type": "final", "text": text}
             if cleaned:
                 event["cleaned"] = True
+                if not text:
+                    event["discarded"] = True
             await client.send_json(event)
             LOGGER.info("completed audio_ms=%d total_ms=%d", bytes_received * 1000 // (SAMPLE_RATE * 2), int((time.monotonic() - started) * 1000))
         finally:

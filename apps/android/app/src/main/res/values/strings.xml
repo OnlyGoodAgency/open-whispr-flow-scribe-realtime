@@ -280,4 +280,13 @@
     <string name="floating_mic_no_transcription">No speech was detected.</string>
     <string name="floating_mic_insert_failed">This text field does not allow the transcription to be inserted.</string>
     <string name="floating_mic_settings_unavailable">Accessibility settings are unavailable on this device.</string>
+    <string name="settings_dictation_vocabulary">Personal vocabulary</string>
+    <string name="settings_dictation_vocabulary_hint">One term per line, up to 50 terms. To fix a misheard name, use: Akme =&gt; Acme. Each spelling can have up to 80 characters.</string>
+    <string name="settings_dictation_learning">Learn words I type</string>
+    <string name="settings_dictation_context">Use nearby text for spelling</string>
+    <string name="settings_dictation_context_description">With the Dictus keyboard, nearby text in the active field is sent with cloud dictation to help spell names. Password and private fields are excluded.</string>
+    <string name="settings_dictation_profanity">Filter profanity</string>
+    <string name="settings_dictation_clear_learned">Clear learned dictation words</string>
+    <string name="settings_dictation_save">Save</string>
+    <string name="settings_dictation_cancel">Cancel</string>
 </resources>

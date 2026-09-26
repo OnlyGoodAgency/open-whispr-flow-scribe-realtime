@@ -99,6 +99,29 @@ class RealtimeSttClientTest {
         }
     }
 
+    @Test fun `cleanup preferences are sent and explicit discard finishes without retry`() = runBlocking {
+        val setup = CompletableDeferred<JSONObject>()
+        server.enqueue(MockResponse().withWebSocketUpgrade(object : WebSocketListener() {
+            override fun onMessage(webSocket: WebSocket, text: String) {
+                val message = JSONObject(text)
+                when (message.getString("type")) {
+                    "start" -> { setup.complete(message); webSocket.send("""{"type":"ready"}""") }
+                    "finish" -> webSocket.send("""{"type":"final","text":"","discarded":true,"cleaned":true}""")
+                }
+            }
+            override fun onClosing(webSocket: WebSocket, code: Int, reason: String) { webSocket.close(code, null) }
+        }))
+        val cleanup = JSONObject().put("supports_discard", true).put("context", "Working with ClickUp")
+        val session = RealtimeSttClient(localUrl(), { "token" }).start(scope, "en", cleanup) {}
+        try {
+            assertEquals("", session.finish())
+            val sent = withTimeout(5000) { setup.await() }.getJSONObject("cleanup")
+            assertTrue(sent.getBoolean("supports_discard"))
+            assertEquals("Working with ClickUp", sent.getString("context"))
+            assertEquals(1, server.requestCount)
+        } finally { session.cancel() }
+    }
+
     @Test fun `provider failure after ready rejects partial text as a final result`() = runBlocking {
         server.enqueue(MockResponse().withWebSocketUpgrade(object : WebSocketListener() {
             override fun onMessage(webSocket: WebSocket, text: String) {

@@ -9,7 +9,7 @@ internal class CloudSttClient(
     private val accessToken: suspend (forceRefresh: Boolean) -> String,
     private val remoteClient: RemoteSttClient = RemoteSttClient(),
 ) {
-    suspend fun transcribe(samples: FloatArray, language: String?): String {
+    suspend fun transcribe(samples: FloatArray, language: String?, cleanupOptions: String? = null): String {
         val started = System.nanoTime()
         Timber.tag("CloudDictation").i("started audio_ms=%d", samples.size * 1_000L / 16_000)
         try {
@@ -20,7 +20,7 @@ internal class CloudSttClient(
                     val result = remoteClient.transcribe(
                         samples,
                         language,
-                        RemoteSttConfig(url = gatewayUrl, apiKey = bearerToken, model = null),
+                        RemoteSttConfig(url = gatewayUrl, apiKey = bearerToken, model = null, cleanupOptions = cleanupOptions),
                     )
                     Timber.tag("CloudDictation").i(
                         "completed status=200 request_ms=%d total_ms=%d",

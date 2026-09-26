@@ -30,6 +30,9 @@ interface DictationController {
     /** Warm the downloaded active model without starting audio or downloading data. */
     fun prewarmEngine()
 
+    /** Optional active-editor hints. Callers must exclude sensitive/private editors. */
+    fun setCleanupContext(text: String) {}
+
     /** Start recording via foreground service. */
     fun startRecording()
 

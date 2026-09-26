@@ -16,6 +16,20 @@ import java.net.InetAddress
 
 @RunWith(RobolectricTestRunner::class)
 class RemoteSttClientTest {
+    @Test fun `batch explicit discard is successful and preferences accompany the audio`() = runBlocking {
+        MockWebServer().use { server ->
+            server.start(InetAddress.getByName("127.0.0.1"), 0)
+            server.enqueue(MockResponse().setResponseCode(200).setBody("""{"text":"","discarded":true}"""))
+            val result = RemoteSttClient(OkHttpClient()).transcribe(floatArrayOf(0f), "en", RemoteSttConfig(
+                url = server.url("/").newBuilder().host("127.0.0.1").build().toString(), apiKey = "token",
+                cleanupOptions = """{"supports_discard":true}""",
+            ))
+            assertEquals("", result)
+            assertTrue(server.takeRequest().body.readUtf8().contains("name=\"cleanup_options\""))
+            assertEquals(1, server.requestCount)
+        }
+    }
+
     @Test
     fun `normalizes an HTTPS base URL`() {
         assertEquals(

@@ -117,6 +117,7 @@ class DictusImeService : LifecycleInputMethodService() {
 
     // Service binding state
     private var dictationController: DictationController? = null
+    private var dictationContextEnabled = false
     private var isBound = false
     private var stateCollectionJob: Job? = null
     private var engineCollectionJob: Job? = null
@@ -230,6 +231,12 @@ class DictusImeService : LifecycleInputMethodService() {
         super.onCreate()
         Timber.d("DictusImeService created")
         bindDictationService()
+
+        bindingScope.launch {
+            entryPoint.dataStore().data.collect { preferences ->
+                dictationContextEnabled = preferences[PreferenceKeys.DICTATION_CONTEXT_ENABLED] == true
+            }
+        }
 
         // Suggestion display and automatic replacement are separate live preferences.
         bindingScope.launch {
@@ -593,6 +600,7 @@ class DictusImeService : LifecycleInputMethodService() {
                     Timber.w("RECORD_AUDIO permission not granted")
                     return
                 }
+                prepareCleanupContext()
                 controller.startRecording()
                 Timber.d("Recording started via mic tap")
             }
@@ -633,7 +641,10 @@ class DictusImeService : LifecycleInputMethodService() {
         fun runGateCommand(command: MicGateCommand) {
             when (command) {
                 MicGateCommand.PREWARM -> dictationController?.prewarmEngine()
-                MicGateCommand.START_RECORDING -> dictationController?.startRecording()
+                MicGateCommand.START_RECORDING -> {
+                    prepareCleanupContext()
+                    dictationController?.startRecording()
+                }
                 MicGateCommand.NONE -> Unit
             }
         }
@@ -962,10 +973,16 @@ class DictusImeService : LifecycleInputMethodService() {
     fun commitText(text: String) {
         val inputConnection = currentInputConnection ?: return
         if (text == " ") {
+            val acceptedWord = _currentWord.value
             val result = autocorrectCoordinator.onSpace(InputConnectionAutocorrectEditor(inputConnection)) {
                 inputConnection.commitText(" ", 1)
             }
             if (result != AutocorrectSpaceResult.INDETERMINATE) {
+                if (result == AutocorrectSpaceResult.PLAIN_SPACE && acceptedWord.isNotBlank()) {
+                    runPersonalizedLearning(PersonalizedLearningEntryPoint.RAW_ACCEPTED_WORD) {
+                        dictionaryEngine.personalDictionary.recordWordTyped(acceptedWord)
+                    }
+                }
                 requestNextWordPredictions(result)
             } else {
                 clearSuggestionState()
@@ -976,6 +993,17 @@ class DictusImeService : LifecycleInputMethodService() {
             inputConnection.commitText(text, 1)
         }
         refreshFrenchAdaptiveKeyState()
+    }
+
+    private fun prepareCleanupContext() {
+        val context = if (dictationContextEnabled && isCurrentEditorSuggestionEligible && isPersonalizedLearningAllowed) {
+            runCatching {
+                val connection = currentInputConnection
+                connection?.getTextBeforeCursor(500, 0)?.toString().orEmpty() +
+                    connection?.getTextAfterCursor(500, 0)?.toString().orEmpty()
+            }.getOrDefault("")
+        } else ""
+        dictationController?.setCleanupContext(context)
     }
 
     /**
