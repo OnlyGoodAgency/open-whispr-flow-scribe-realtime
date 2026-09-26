@@ -36,10 +36,11 @@ def provider_error(event: dict) -> RealtimeProviderError:
 
 
 class RealtimeBridge:
-    def __init__(self, api_key: str, *, max_seconds: float = 900.0, connector=None):
+    def __init__(self, api_key: str, *, max_seconds: float = 900.0, connector=None, final_cleanup=None):
         self.api_key = api_key
         self.max_seconds = max_seconds
         self.connector = connector or connect
+        self.final_cleanup = final_cleanup
 
     def connection(self, language: str | None):
         if not self.api_key:
@@ -194,17 +195,14 @@ class RealtimeBridge:
 
         async def finish():
             if bytes_received == 0:
-                await client.send_json({"type": "final", "text": ""})
-                return
+                return ""
             # Require a commit, then drain trailing events. A partial alone is never
             # treated as final; if finalization fails Android can retry the full clip.
             async with asyncio.timeout(FINAL_TIMEOUT):
                 await final_commit.wait()
                 while partial or time.monotonic() - last_event < 0.4:
                     await asyncio.sleep(0.05)
-            text = " ".join(committed)
-            await client.send_json({"type": "final", "text": text})
-            LOGGER.info("completed audio_ms=%d total_ms=%d", bytes_received * 1000 // (SAMPLE_RATE * 2), int((time.monotonic() - started) * 1000))
+            return " ".join(committed)
 
         audio_task = asyncio.create_task(receive_audio())
         transcript_task = asyncio.create_task(receive_transcripts())
@@ -221,7 +219,19 @@ class RealtimeBridge:
             if transcript_task in done:
                 transcript_task.result()
                 raise RealtimeProviderError("provider_unavailable")
-            final_task.result()
+            text = final_task.result()
+            # The final provider commit has been drained. Close the receiver
+            # before cleanup so a provider disconnect cannot discard valid text.
+            transcript_task.cancel()
+            await asyncio.gather(transcript_task, return_exceptions=True)
+            cleaned = False
+            if self.final_cleanup is not None:
+                text, cleaned = await self.final_cleanup(text)
+            event = {"type": "final", "text": text}
+            if cleaned:
+                event["cleaned"] = True
+            await client.send_json(event)
+            LOGGER.info("completed audio_ms=%d total_ms=%d", bytes_received * 1000 // (SAMPLE_RATE * 2), int((time.monotonic() - started) * 1000))
         finally:
             tasks = [task for task in (audio_task, transcript_task, final_task) if task is not None]
             for task in tasks:

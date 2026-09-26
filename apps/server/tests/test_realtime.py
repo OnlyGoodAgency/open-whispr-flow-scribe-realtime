@@ -2,6 +2,7 @@ import asyncio
 import base64
 import json
 import logging
+import httpx
 from dataclasses import replace
 
 import pytest
@@ -245,3 +246,90 @@ def test_finish_drains_delayed_last_phrase_instead_of_returning_an_earlier_commi
             assert socket.receive_json() == {"type": "partial", "text": "Another phrase"}
             assert socket.receive_json() == {"type": "committed", "text": "Another phrase."}
             assert socket.receive_json() == {"type": "final", "text": "Hello world. Another phrase."}
+
+
+def test_cleanup_runs_once_after_stop_leaving_live_events_untouched():
+    calls = []
+
+    def handler(request):
+        calls.append(request.url.path)
+        payload = json.loads(request.content)
+        assert payload["messages"][1]["content"] == "Hello world. Another phrase."
+        return httpx.Response(200, json={"choices": [{"message": {"content": "Hello world.\n\nAnother phrase."}, "finish_reason": "stop"}]})
+
+    connector = FakeConnector()
+    app = create_app(replace(SETTINGS, cleanup_enabled=True), httpx.MockTransport(handler), realtime_connector=connector)
+    with TestClient(app) as client:
+        with client.websocket_connect("/realtime/transcription", headers=AUTH) as socket:
+            start(socket)
+            socket.send_bytes(bytes(6_400))
+            read_first_phrase(socket)
+            assert calls == []
+            socket.send_json({"type": "finish"})
+            assert socket.receive_json()["type"] == "committed"
+            assert socket.receive_json() == {"type": "final", "text": "Hello world.\n\nAnother phrase.", "cleaned": True}
+    assert calls == ["/api/v1/chat/completions"]
+
+
+@pytest.mark.parametrize("failure", ["timeout", "http", "truncated"])
+def test_cleanup_failure_returns_streamed_text_without_triggering_batch(failure):
+    async def handler(request):
+        if failure == "timeout":
+            await asyncio.sleep(1)
+        if failure == "truncated":
+            return httpx.Response(200, json={"choices": [{"message": {"content": "Hello"}, "finish_reason": "length"}]})
+        return httpx.Response(503)
+
+    connector = FakeConnector()
+    settings = replace(SETTINGS, cleanup_enabled=True, cleanup_timeout_seconds=0.1)
+    app = create_app(settings, httpx.MockTransport(handler), realtime_connector=connector)
+    with TestClient(app) as client:
+        with client.websocket_connect("/realtime/transcription", headers=AUTH) as socket:
+            start(socket)
+            socket.send_bytes(bytes(6_400))
+            read_first_phrase(socket)
+            socket.send_json({"type": "finish"})
+            assert socket.receive_json()["type"] == "committed"
+            assert socket.receive_json() == {"type": "final", "text": "Hello world. Another phrase."}
+
+
+def test_cancel_does_not_request_cleanup():
+    def handler(request):
+        pytest.fail("cancel must not request cleanup")
+    app = create_app(replace(SETTINGS, cleanup_enabled=True), httpx.MockTransport(handler), realtime_connector=FakeConnector())
+    with TestClient(app) as client:
+        with client.websocket_connect("/realtime/transcription", headers=AUTH) as socket:
+            start(socket)
+            socket.send_bytes(bytes(6_400))
+            read_first_phrase(socket)
+            socket.send_json({"type": "cancel"})
+            with pytest.raises(WebSocketDisconnect):
+                socket.receive_json()
+
+
+def test_provider_disconnect_after_final_commit_cannot_discard_cleanup():
+    class ClosingProvider(FakeProvider):
+        async def send(self, message):
+            await super().send(message)
+            if json.loads(message).get("commit"):
+                asyncio.get_running_loop().call_later(0.5, self.events.put_nowait, {"closed": True})
+
+        async def recv(self):
+            event = await self.events.get()
+            if event.get("closed"):
+                raise OSError("provider closed its session")
+            return json.dumps(event)
+
+    async def handler(request):
+        await asyncio.sleep(0.6)
+        return httpx.Response(200, json={"choices": [{"message": {"content": "Hello world. Another phrase."}}]})
+
+    app = create_app(replace(SETTINGS, cleanup_enabled=True), httpx.MockTransport(handler), realtime_connector=FakeConnector(ClosingProvider()))
+    with TestClient(app) as client:
+        with client.websocket_connect("/realtime/transcription", headers=AUTH) as socket:
+            start(socket)
+            socket.send_bytes(bytes(6_400))
+            read_first_phrase(socket)
+            socket.send_json({"type": "finish"})
+            assert socket.receive_json()["type"] == "committed"
+            assert socket.receive_json() == {"type": "final", "text": "Hello world. Another phrase.", "cleaned": True}

@@ -53,7 +53,7 @@ android {
         buildConfigField("String", "SUPABASE_URL", buildConfigString(supabaseUrl))
         val cloudGatewayUrl = providers.gradleProperty("CLOUD_GATEWAY_URL")
             .orElse(providers.environmentVariable("CLOUD_GATEWAY_URL"))
-            .orElse("https://dbjycf5wki3jqppb73cp9xji.187.52.126.169.sslip.io")
+            .orElse("https://uhqgd4qlmep8pnndo8j893bc.187.52.126.169.sslip.io")
             .get()
         buildConfigField("String", "CLOUD_GATEWAY_URL", buildConfigString(cloudGatewayUrl))
         buildConfigField(

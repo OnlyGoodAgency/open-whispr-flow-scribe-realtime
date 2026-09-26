@@ -13,14 +13,17 @@ object TextPostProcessor {
 
     private val SENTENCE_ENDERS = setOf('.', '!', '?')
     private val FILLER_WORD = Regex(
-        pattern = "(?i)(?<![\\p{L}\\p{N}])(?:uh+|um+|uhm+|hmm+|mmm+)(?![\\p{L}\\p{N}])[,;:]?\\s*",
+        pattern = "(?i)(?<![\\p{L}\\p{N}])(?:uh+|um+|uhm+|hmm+|mmm+)(?![\\p{L}\\p{N}])[,;:]?[ \\t]*",
     )
-    private val REPEATED_SPACES = Regex("\\s{2,}")
+    // Final cloud cleanup can contain paragraph breaks; keep them on insertion.
+    private val REPEATED_SPACES = Regex("[ \\t]{2,}")
+    private val LINE_END_SPACES = Regex("[ \\t]+(?=\\r?\\n)")
 
     fun process(rawText: String): String {
         val trimmed = rawText
             .replace(FILLER_WORD, "")
             .replace(REPEATED_SPACES, " ")
+            .replace(LINE_END_SPACES, "")
             .trim()
         if (trimmed.isEmpty()) return ""
 

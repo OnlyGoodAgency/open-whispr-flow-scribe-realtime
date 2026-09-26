@@ -53,8 +53,9 @@ speech providers instead of claiming to reproduce proprietary internals.
      accepts verified Supabase user access tokens as well as the migration key.
    - `STT_PRIMARY_MODEL`: `openai/whisper-large-v3-turbo`.
    - `STT_FALLBACK_MODEL`: `openai/whisper-1`.
-   - `TEXT_CLEANUP_ENABLED`: `true` for Wispr-style punctuation and filler cleanup.
+   - `TEXT_CLEANUP_ENABLED`: `true` for final dictation formatting and cleanup.
    - `TEXT_CLEANUP_MODEL`: `openai/gpt-4.1-mini`.
+   - `TEXT_CLEANUP_TIMEOUT_SECONDS`: `4` (one bounded attempt; capped at 8 seconds).
 
 5. On the `gateway` service, set a domain such as
    `https://whisper.example.com:8000`. The `:8000` tells Coolify which internal
@@ -99,7 +100,7 @@ the Home card will show **Live cloud transcription**. The gateway uses
 and desktop requests. An expired streaming token is refreshed and retried once.
 
 The default gateway is
-`https://dbjycf5wki3jqppb73cp9xji.187.52.126.169.sslip.io`.
+`https://uhqgd4qlmep8pnndo8j893bc.187.52.126.169.sslip.io`.
 Android builds can override it with the `CLOUD_GATEWAY_URL` Gradle property or
 environment variable. This is a public address, not a secret. Existing saved
 Android server credentials are no longer used for cloud requests.
@@ -186,8 +187,34 @@ not prove token acceptance or transcription. Unit tests cover session reuse,
 refresh, the one-retry limit, provider failures, and cancellation. The phone
 test must confirm the deployed gateway returns text and establish actual speed.
 The current automated tests use mocked provider connections, not paid ElevenLabs
-sessions. Realtime does not run the separate GPT cleanup pass; punctuation comes
-from Scribe and existing client processing. Batch fallback keeps its cleanup.
+sessions. Realtime now runs the same final cleanup policy as batch: live partial
+and committed text stays untouched, then one OpenRouter cleanup request runs
+after Stop. Successful cleanup formats quantities and context-sensitive speech
+slips. Failure, incomplete model output, or timeout returns the original committed
+transcript without re-transcribing the audio. Actual paid-model accuracy and
+Stop-to-result latency must be checked on the deployed service.
+
+### Phase-one dictation cleanup
+
+The policy in `apps/server/cleanup.py` targets numbers, currencies, dates in spoken
+order, times, percentages, ranges, decimals, fractions, measurements, ordinals,
+version/model identifiers, filler removal, accidental repeats, obvious
+self-corrections, punctuation and paragraph breaks. It preserves idioms, personal
+wording, meaningful hedges, unusual names and language switching. Conservative
+local quantity rules enforce `$45`, `£50`, `30%`, `37kg` and `20°` style; contextual
+decisions depend on the cleanup model and aren't guaranteed by a prompt alone.
+
+`TEXT_CLEANUP_ENABLED=false` bypasses the entire step. The default deadline is
+four seconds, with no retries; this is a latency budget, not a promised response
+time. The gateway logs `cleanup completed duration_ms=...` or
+`cleanup fallback=original duration_ms=...` without text or secrets.
+The Android post-processor preserves the returned paragraphs. Existing APKs
+receive server formatting after redeployment; rebuild for paragraph preservation.
+
+Custom dictionaries, edit learning, screen context, deletion/punctuation commands,
+and automatic list/email construction are later phases. Use the
+[deployment and phone acceptance checklist](apps/server/CLEANUP_TESTING.md) to
+verify this phase before describing it to a client as fully supported.
 
 ### Realtime gateway protocol
 
@@ -201,7 +228,9 @@ chunk at one second and session duration at `REALTIME_MAX_SECONDS`.
 The gateway emits `partial`, `committed`, `final`, or sanitized `error` events.
 Partial text replaces the current phrase; committed text appends a completed
 phrase. Send `{"type":"finish"}` to flush the last phrase, or `{"type":"cancel"}`
-to discard. The final event contains the full transcript. Provider credentials
+to discard. The final event contains the full transcript after optional bounded
+cleanup, with `cleaned:true` when cleanup succeeded. Existing clients can ignore
+that extra field. Provider credentials
 and transcripts are excluded from timing logs.
 
 Android bounds its outbound audio queue. If setup, streaming, or finalization
