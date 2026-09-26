@@ -6,7 +6,7 @@ import httpx
 import pytest
 
 from app import OpenRouterTranscriber, Settings
-from cleanup import CleanupOptions, apply_vocabulary, normalize_formats
+from cleanup import CleanupOptions, apply_vocabulary, normalize_formats, realtime_keyterms
 
 
 @pytest.mark.parametrize(("spoken", "expected"), [
@@ -98,6 +98,23 @@ def test_explicit_vocabulary_wins_preserving_word_boundaries():
     assert apply_vocabulary("Akme and github, not akmeology.", options) == "Acme and GitHUB, not akmeology."
 
 
+def test_observed_edit_alias_applies_but_manual_dictionary_wins():
+    options = CleanupOptions(learned_vocabulary=[{"spoken": "akme", "written": "ACME"}], vocabulary=[{"spoken": "Acme", "written": "Acme"}])
+    assert apply_vocabulary("Akme and ACME.", options) == "Acme and Acme."
+    overridden = CleanupOptions(learned_vocabulary=[{"spoken": "akme", "written": "OldName"}], vocabulary=[{"spoken": "akme", "written": "MyName"}])
+    assert apply_vocabulary("akme", overridden) == "MyName"
+    assert apply_vocabulary("OldName", overridden) == "MyName"
+    assert realtime_keyterms(overridden) == ["MyName"]
+
+
+def test_scribe_hints_are_bounded_deduplicated_and_manual_first():
+    options = CleanupOptions(vocabulary=[{"spoken": "akme", "written": "ACME"}], learned_vocabulary=[{"spoken": "click up", "written": "ClickUp"}], learned_terms=["acme"] + [f"Term{i}" for i in range(99)])
+    terms = realtime_keyterms(options)
+    assert terms[:2] == ["ACME", "ClickUp"]
+    assert len(terms) == 50
+    assert "acme" not in terms
+
+
 @pytest.mark.parametrize("options", [
     {"vocabulary": [{"spoken": "", "written": "Name"}]},
     {"vocabulary": [{"spoken": "Name", "written": "x" * 81}]},
@@ -105,7 +122,7 @@ def test_explicit_vocabulary_wins_preserving_word_boundaries():
     {"vocabulary": [{"spoken": "Name", "written": "Name"}] * 51},
     {"learned_terms": ["x" * 81]},
     {"learned_terms": ["Name"] * 101},
-    {"context": "x" * 1001},
+    {"context": "x" * 4001},
     {"filter_profanity": "false"},
     {"unknown": True},
 ])

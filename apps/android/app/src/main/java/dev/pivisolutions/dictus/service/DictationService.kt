@@ -53,6 +53,9 @@ import kotlinx.coroutines.launch
 import kotlinx.coroutines.withTimeoutOrNull
 import dev.pivisolutions.dictus.asr.ParakeetProvider
 import dev.pivisolutions.dictus.core.whisper.TextPostProcessor
+import dev.pivisolutions.dictus.core.whisper.DictationLearning
+import dev.pivisolutions.dictus.core.whisper.DictationLearningStore
+import dev.pivisolutions.dictus.core.whisper.RecentDictation
 import dev.pivisolutions.dictus.model.AiProvider
 import dev.pivisolutions.dictus.model.ModelManager
 import timber.log.Timber
@@ -140,9 +143,16 @@ class DictationService : Service(), DictationController {
     }
     private var realtimeSession: RealtimeSttClient.Session? = null
     private var cleanupContext = ""
+    private var dictationLearningAllowed = true
+    private val dictationLearning by lazy { DictationLearningStore(dataStore) }
 
     override fun setCleanupContext(text: String) {
-        cleanupContext = text.take(1000)
+        cleanupContext = text.take(DictationLearning.MAX_CONTEXT)
+    }
+
+    override fun setDictationLearningAllowed(allowed: Boolean) {
+        dictationLearningAllowed = allowed
+        if (!allowed) RecentDictation.clear()
     }
 
     /**
@@ -329,6 +339,7 @@ class DictationService : Service(), DictationController {
      */
     override fun stopRecording(): FloatArray {
         cleanupContext = ""
+        dictationLearningAllowed = true
         realtimeSession?.cancel()
         realtimeSession = null
         captureStartJob?.cancel()
@@ -375,7 +386,9 @@ class DictationService : Service(), DictationController {
         val liveSession = realtimeSession
         realtimeSession = null
         val recordingContext = cleanupContext
+        val learningAllowed = dictationLearningAllowed
         cleanupContext = ""
+        dictationLearningAllowed = true
         // 1. Stop recording and get audio samples
         captureStartJob?.cancel()
         captureStartJob = null
@@ -417,7 +430,7 @@ class DictationService : Service(), DictationController {
             // 2. Read user preferences at transcription time so changes take effect
             //    without needing a service restart.
             val prefs = dataStore.data.first()
-            val cleanupOptions = DictationCleanupOptions.from(prefs, recordingContext).toString()
+            val cleanupOptions = DictationCleanupOptions.from(prefs, recordingContext, learningAllowed).toString()
             val activeModelKey = prefs[PreferenceKeys.ACTIVE_MODEL] ?: ModelCatalog.DEFAULT_KEY
             val languagePref = prefs[PreferenceKeys.TRANSCRIPTION_LANGUAGE] ?: "auto"
             // "auto" maps to null for whisper.cpp which triggers its own language detection.
@@ -483,6 +496,17 @@ class DictationService : Service(), DictationController {
             Timber.d(PrivacySafeLog.transcriptionProcessed(rawText, processedText))
 
             if (processedText.isNotEmpty()) {
+                if (learningAllowed && prefs[PreferenceKeys.DICTATION_LEARNING_ENABLED] != false) {
+                    RecentDictation.publish(processedText, android.os.SystemClock.elapsedRealtime())
+                    serviceScope.launch {
+                        runCatching {
+                            dictationLearning.observeTranscript(processedText)
+                            if (prefs[PreferenceKeys.DICTATION_CONTEXT_ENABLED] == true) {
+                                dictationLearning.observeTranscript(recordingContext, screen = true)
+                            }
+                        }.onFailure { Timber.w("Dictation vocabulary could not be updated") }
+                    }
+                }
                 val model = ModelCatalog.findByKey(activeModelKey)
                 transcriptionHistoryWriter.persist(
                     retention = retention,
@@ -504,7 +528,7 @@ class DictationService : Service(), DictationController {
             stopForeground(STOP_FOREGROUND_REMOVE)
             stopSelf()
 
-            if (processedText.isEmpty()) null else processedText
+            processedText
         } catch (cancellation: CancellationException) {
             _state.value = DictationState.Idle
             stopForeground(STOP_FOREGROUND_REMOVE)
@@ -636,6 +660,7 @@ class DictationService : Service(), DictationController {
      */
     private fun stopRecordingInternal(discard: Boolean) {
         cleanupContext = ""
+        dictationLearningAllowed = true
         realtimeSession?.cancel()
         realtimeSession = null
         captureStartJob?.cancel()
@@ -667,7 +692,7 @@ class DictationService : Service(), DictationController {
                 if (prefs[PreferenceKeys.REMOTE_STT_ENABLED] == true) {
                     val language = prefs[PreferenceKeys.TRANSCRIPTION_LANGUAGE]?.takeIf { it != "auto" }
                     lateinit var session: RealtimeSttClient.Session
-                    session = realtimeSttClient.start(serviceScope, language, DictationCleanupOptions.from(prefs, cleanupContext)) { text ->
+                    session = realtimeSttClient.start(serviceScope, language, DictationCleanupOptions.from(prefs, cleanupContext, dictationLearningAllowed)) { text ->
                         serviceScope.launch {
                             if (realtimeSession === session) {
                                 _state.update { current ->

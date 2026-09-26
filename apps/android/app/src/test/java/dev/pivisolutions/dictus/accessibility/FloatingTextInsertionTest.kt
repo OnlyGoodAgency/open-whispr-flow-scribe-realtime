@@ -4,6 +4,10 @@ import org.junit.Assert.assertEquals
 import org.junit.Test
 
 class FloatingTextInsertionTest {
+    @Test fun `preserves lists email layout and explicit trailing line breaks`() {
+        val text = "Tasks:\n1. Pay $45\n2. Call Patel\n"
+        assertEquals(FloatingTextInsertion(text, text.length), composeFloatingTextInsertion("", 0, 0, text))
+    }
     @Test
     fun `ignores WhatsApp message placeholder exposed as editor text`() {
         assertEquals(

@@ -7,10 +7,12 @@ import android.content.Context
 import android.content.Intent
 import android.os.Build
 import android.os.PersistableBundle
+import android.os.SystemClock
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.remember
 import androidx.compose.ui.platform.LocalContext
 import dev.pivisolutions.dictus.R
+import dev.pivisolutions.dictus.core.whisper.RecentDictation
 
 /** Explicit user-triggered bridges from private local history to Android system surfaces. */
 internal class HistoryActions(private val context: Context) {
@@ -22,6 +24,9 @@ internal class HistoryActions(private val context: Context) {
             }
         }
         context.getSystemService(ClipboardManager::class.java).setPrimaryClip(clip)
+        // A fresh explicit copy, including older history, can be recognized on paste.
+        // Edit observers still require the user's learning preference and eligible field.
+        RecentDictation.publish(text, SystemClock.elapsedRealtime())
     }
 
     fun share(text: String) {

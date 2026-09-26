@@ -10,6 +10,7 @@ import androidx.lifecycle.viewModelScope
 import dagger.hilt.android.lifecycle.HiltViewModel
 import dev.pivisolutions.dictus.core.preferences.PreferenceKeys
 import dev.pivisolutions.dictus.core.whisper.DictationVocabulary
+import dev.pivisolutions.dictus.core.whisper.RecentDictation
 import dev.pivisolutions.dictus.ime.input.AutocorrectRuntimePolicy
 import dev.pivisolutions.dictus.ime.language.KeyboardPreferenceResolver
 import dev.pivisolutions.dictus.model.ModelCatalog
@@ -100,6 +101,7 @@ class SettingsViewModel @Inject constructor(
     }
 
     fun toggleDictationLearning() {
+        RecentDictation.clear()
         viewModelScope.launch { dataStore.edit { it[PreferenceKeys.DICTATION_LEARNING_ENABLED] = !(it[PreferenceKeys.DICTATION_LEARNING_ENABLED] ?: true) } }
     }
 
@@ -108,7 +110,12 @@ class SettingsViewModel @Inject constructor(
     }
 
     fun clearLearnedDictationTerms() {
-        viewModelScope.launch { dataStore.edit { it.remove(PreferenceKeys.DICTATION_LEARNED_TERMS) } }
+        RecentDictation.clear()
+        viewModelScope.launch { dataStore.edit {
+            it.remove(PreferenceKeys.DICTATION_LEARNED_TERMS)
+            it.remove(PreferenceKeys.DICTATION_LEARNED_ALIASES)
+            it.remove(PreferenceKeys.DICTATION_TERM_COUNTS)
+        } }
     }
 
     val floatingMicDisclosureAccepted: StateFlow<Boolean> = dataStore.data

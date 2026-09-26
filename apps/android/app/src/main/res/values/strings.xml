@@ -266,7 +266,7 @@
     <string name="floating_mic_service_name">OpenWhisperFlow floating microphone</string>
     <string name="floating_mic_service_description">Shows a movable microphone when a non-password text field is focused and inserts your transcription where the cursor is.</string>
     <string name="floating_mic_disclosure_title">Use Samsung Keyboard with OpenWhisperFlow</string>
-    <string name="floating_mic_disclosure_body">To show a microphone beside text fields while Samsung Keyboard stays selected, OpenWhisperFlow needs Android Accessibility access. The service can view the focused field and reads its existing text on-device only when inserting your transcription at the cursor. It never reads password fields and does not store or share text accessed this way. Recorded audio is handled by the local model or shared server you selected in Transcription settings.</string>
+    <string name="floating_mic_disclosure_body">OpenWhisperFlow uses Android Accessibility access to insert dictation while another keyboard stays selected. With Learn my vocabulary enabled, it can learn spelling corrections you make to a recent dictation; only words and corrections are saved on-device. With Use screen text for spelling enabled, accessible text from the active app is sent with cloud dictation as spelling hints and can supply vocabulary. Password and sensitive fields are excluded. You can disable learning, disable context, or clear learned words in Settings. Recorded audio uses your selected local model or shared server.</string>
     <string name="floating_mic_disclosure_accept">Continue</string>
     <string name="floating_mic_disclosure_cancel">Cancel</string>
     <string name="floating_mic_record_cd">Start voice dictation</string>
@@ -282,9 +282,9 @@
     <string name="floating_mic_settings_unavailable">Accessibility settings are unavailable on this device.</string>
     <string name="settings_dictation_vocabulary">Personal vocabulary</string>
     <string name="settings_dictation_vocabulary_hint">One term per line, up to 50 terms. To fix a misheard name, use: Akme =&gt; Acme. Each spelling can have up to 80 characters.</string>
-    <string name="settings_dictation_learning">Learn words I type</string>
-    <string name="settings_dictation_context">Use nearby text for spelling</string>
-    <string name="settings_dictation_context_description">With the Dictus keyboard, nearby text in the active field is sent with cloud dictation to help spell names. Password and private fields are excluded.</string>
+    <string name="settings_dictation_learning">Learn my vocabulary</string>
+    <string name="settings_dictation_context">Use screen text for spelling</string>
+    <string name="settings_dictation_context_description">Learns from repeated dictation and spelling edits after insertion. Enable the floating microphone in Accessibility to learn edits with other keyboards and use accessible screen text. When context is on, screen text is sent with cloud dictation; password and sensitive fields are excluded.</string>
     <string name="settings_dictation_profanity">Filter profanity</string>
     <string name="settings_dictation_clear_learned">Clear learned dictation words</string>
     <string name="settings_dictation_save">Save</string>

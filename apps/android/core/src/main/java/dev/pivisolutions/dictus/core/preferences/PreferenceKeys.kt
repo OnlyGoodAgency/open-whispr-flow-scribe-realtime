@@ -74,6 +74,8 @@ object PreferenceKeys {
     /** Dictation spelling overrides, preserving exact user casing. */
     val DICTATION_VOCABULARY = stringPreferencesKey("dictation_vocabulary")
     val DICTATION_LEARNED_TERMS = stringSetPreferencesKey("dictation_learned_terms")
+    val DICTATION_LEARNED_ALIASES = stringPreferencesKey("dictation_learned_aliases")
+    val DICTATION_TERM_COUNTS = stringPreferencesKey("dictation_term_counts")
     val DICTATION_CONTEXT_ENABLED = booleanPreferencesKey("dictation_context_enabled")
     val DICTATION_LEARNING_ENABLED = booleanPreferencesKey("dictation_learning_enabled")
     val DICTATION_FILTER_PROFANITY = booleanPreferencesKey("dictation_filter_profanity")

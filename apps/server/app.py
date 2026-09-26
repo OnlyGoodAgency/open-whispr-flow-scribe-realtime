@@ -430,7 +430,7 @@ def create_app(
         del model  # Model selection is controlled centrally on the server.
         await authorize(authorization)
         try:
-            if cleanup_options is not None and len(cleanup_options) > 20_000:
+            if cleanup_options is not None and len(cleanup_options) > 64_000:
                 raise ValueError("Cleanup options too large")
             options = CleanupOptions.model_validate_json(cleanup_options) if cleanup_options else CleanupOptions()
         except ValueError as error:

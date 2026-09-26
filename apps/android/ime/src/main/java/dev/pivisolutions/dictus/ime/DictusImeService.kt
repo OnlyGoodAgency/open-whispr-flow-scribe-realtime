@@ -22,6 +22,13 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.semantics.clearAndSetSemantics
 import dagger.hilt.android.EntryPointAccessors
 import dev.pivisolutions.dictus.core.preferences.PreferenceKeys
+import dev.pivisolutions.dictus.core.whisper.DictationLearning
+import dev.pivisolutions.dictus.core.whisper.DictationLearningStore
+import dev.pivisolutions.dictus.core.whisper.DictationEditTracker
+import dev.pivisolutions.dictus.core.whisper.DictationScreenContext
+import dev.pivisolutions.dictus.core.whisper.RecentDictation
+import android.view.inputmethod.ExtractedTextRequest
+import android.os.SystemClock
 import dev.pivisolutions.dictus.core.service.DictationController
 import dev.pivisolutions.dictus.core.service.DictationState
 import dev.pivisolutions.dictus.core.service.MicGateCommand
@@ -71,6 +78,7 @@ import dev.pivisolutions.dictus.ime.language.cycleKeyboardLanguage
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.MainScope
 import kotlinx.coroutines.cancel
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.filterNotNull
 import kotlinx.coroutines.flow.map
@@ -118,6 +126,11 @@ class DictusImeService : LifecycleInputMethodService() {
     // Service binding state
     private var dictationController: DictationController? = null
     private var dictationContextEnabled = false
+    private var dictationLearningEnabled = true
+    private val dictationEditTracker = DictationEditTracker()
+    private var dictationEditJob: Job? = null
+    private var lastEditorText: String? = null
+    private val dictationLearning by lazy { DictationLearningStore(entryPoint.dataStore()) }
     private var isBound = false
     private var stateCollectionJob: Job? = null
     private var engineCollectionJob: Job? = null
@@ -235,6 +248,12 @@ class DictusImeService : LifecycleInputMethodService() {
         bindingScope.launch {
             entryPoint.dataStore().data.collect { preferences ->
                 dictationContextEnabled = preferences[PreferenceKeys.DICTATION_CONTEXT_ENABLED] == true
+                dictationLearningEnabled = preferences[PreferenceKeys.DICTATION_LEARNING_ENABLED] != false
+                if (!dictationLearningEnabled) {
+                    dictationEditTracker.clear()
+                    dictationEditJob?.cancel()
+                    lastEditorText = null
+                }
             }
         }
 
@@ -387,6 +406,7 @@ class DictusImeService : LifecycleInputMethodService() {
         autocorrectCoordinator.onEditorSelectionChanged(newSelStart, newSelEnd)
         isEditorSelectionCollapsed = newSelStart >= 0 && newSelStart == newSelEnd
         refreshFrenchAdaptiveKeyState()
+        observeDictationEdits()
         if (!isCurrentEditorSuggestionEligible) {
             _currentWord.value = ""
             clearSuggestionState()
@@ -517,6 +537,9 @@ class DictusImeService : LifecycleInputMethodService() {
         }
         isCurrentEditorSuggestionEligible = editorPolicy?.suggestionEligible == true
         isPersonalizedLearningAllowed = editorPolicy?.personalizedLearningAllowed == true
+        dictationEditTracker.clear()
+        dictationEditJob?.cancel()
+        lastEditorText = if (dictationLearningEnabled && isCurrentEditorSuggestionEligible && isPersonalizedLearningAllowed) readEditorText() else null
         transcriptionRetentionSession.restrict(
             isCurrentEditorSuggestionEligible,
             isPersonalizedLearningAllowed,
@@ -547,6 +570,9 @@ class DictusImeService : LifecycleInputMethodService() {
     }
 
     override fun onFinishInput() {
+        dictationEditTracker.clear()
+        dictationEditJob?.cancel()
+        lastEditorText = null
         correctionSessionId++
         autocorrectCoordinator.finishSession()
         predictionCoordinator.finishSession()
@@ -917,15 +943,19 @@ class DictusImeService : LifecycleInputMethodService() {
                                 val retention = transcriptionRetentionSession.consume()
                                 bindingScope.launch {
                                     val text = controller.confirmAndTranscribe(retention)
-                                    if (text != null) {
+                                    if (!text.isNullOrEmpty()) {
+                                        if (dictationLearningEnabled && isCurrentEditorSuggestionEligible && isPersonalizedLearningAllowed) {
+                                            lastEditorText = readEditorText()
+                                        }
                                         commitText(text)
+                                        observeDictationEdits()
                                         Timber.d(PrivacySafeLog.transcriptionInserted(text))
                                         // Clear suggestions after voice transcription so the bar
                                         // does not show stale suggestions from the last typed word.
                                         // Suggestions resume when user types on keyboard.
                                         _suggestions.value = emptyList()
                                         _currentWord.value = ""
-                                    } else {
+                                    } else if (text == null) {
                                         Timber.w("Transcription returned null (failed or empty)")
                                     }
                                 }
@@ -996,14 +1026,44 @@ class DictusImeService : LifecycleInputMethodService() {
     }
 
     private fun prepareCleanupContext() {
+        dictationController?.setDictationLearningAllowed(isCurrentEditorSuggestionEligible && isPersonalizedLearningAllowed)
         val context = if (dictationContextEnabled && isCurrentEditorSuggestionEligible && isPersonalizedLearningAllowed) {
             runCatching {
                 val connection = currentInputConnection
-                connection?.getTextBeforeCursor(500, 0)?.toString().orEmpty() +
+                val nearby = connection?.getTextBeforeCursor(500, 0)?.toString().orEmpty() +
                     connection?.getTextAfterCursor(500, 0)?.toString().orEmpty()
+                (nearby + "\n" + DictationScreenContext.read(currentInputEditorInfo?.packageName)).take(DictationLearning.MAX_CONTEXT)
             }.getOrDefault("")
         } else ""
         dictationController?.setCleanupContext(context)
+    }
+
+    private fun readEditorText(): String? = runCatching {
+        val extracted = currentInputConnection?.getExtractedText(ExtractedTextRequest().apply {
+            hintMaxChars = DictationLearning.MAX_EDITOR
+        }, 0) ?: return@runCatching null
+        if (extracted.startOffset != 0 || extracted.partialStartOffset >= 0 || extracted.text.length > DictationLearning.MAX_EDITOR) null
+        else extracted.text.toString()
+    }.getOrNull()
+
+    private fun observeDictationEdits() {
+        if (!dictationLearningEnabled || !isCurrentEditorSuggestionEligible || !isPersonalizedLearningAllowed) return
+        val after = readEditorText() ?: return
+        val before = lastEditorText
+        lastEditorText = after
+        val identity = "${currentInputEditorInfo?.packageName}:${currentInputEditorInfo?.fieldId}:$correctionSessionId"
+        val now = SystemClock.elapsedRealtime()
+        if (before != null) RecentDictation.findInsertion(before, after, now)?.let { range ->
+            dictationEditTracker.arm(identity, after, range.first, range.last-range.first+1, now)
+        }
+        dictationEditJob?.cancel()
+        dictationEditJob = bindingScope.launch {
+            delay(1200)
+            dictationEditTracker.settle(identity, after, SystemClock.elapsedRealtime())?.let { term ->
+                runCatching { dictationLearning.learnCorrection(term) }
+                    .onFailure { Timber.w("Dictation correction could not be learned") }
+            }
+        }
     }
 
     /**

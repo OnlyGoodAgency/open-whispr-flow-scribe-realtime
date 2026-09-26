@@ -272,6 +272,6 @@ def test_bad_cleanup_options_do_not_upload_audio_to_a_provider():
         response = client.post("/v1/audio/transcriptions",
             headers={"Authorization": f"Bearer {SETTINGS.client_api_key}"},
             files={"file": ("sample.wav", b"RIFFaudio", "audio/wav")},
-            data={"cleanup_options": json.dumps({"context": "x" * 1001})})
+            data={"cleanup_options": json.dumps({"context": "x" * 4001})})
     assert response.status_code == 400
     assert "x" * 100 not in response.text

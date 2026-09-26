@@ -2,6 +2,8 @@ package dev.pivisolutions.dictus.onboarding
 
 import android.content.ClipData
 import android.content.ClipboardManager
+import android.os.SystemClock
+import dev.pivisolutions.dictus.core.whisper.RecentDictation
 import android.content.Context
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
@@ -186,6 +188,7 @@ fun OnboardingTestRecordingScreen(
                                     clipboard.setPrimaryClip(
                                         ClipData.newPlainText("Dictus", transcriptionResult),
                                     )
+                                    RecentDictation.publish(transcriptionResult.orEmpty(), SystemClock.elapsedRealtime())
                                     copied = true
                                 }
                                 .padding(8.dp),

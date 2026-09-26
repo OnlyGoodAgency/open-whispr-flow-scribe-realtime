@@ -32,6 +32,8 @@ interface DictationController {
 
     /** Optional active-editor hints. Callers must exclude sensitive/private editors. */
     fun setCleanupContext(text: String) {}
+    /** Callers exclude private fields from vocabulary learning. */
+    fun setDictationLearningAllowed(allowed: Boolean) {}
 
     /** Start recording via foreground service. */
     fun startRecording()

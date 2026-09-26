@@ -1,61 +1,69 @@
 """Synthetic acceptance checks using the container's configured cleanup model.
 
-Run manually: python check_cleanup.py [--case numbered-list]
+Run manually: python check_cleanup.py --list
+              python check_cleanup.py --case numbered-list
 Each selected case makes one billed OpenRouter request; no microphone audio.
 """
 from __future__ import annotations
 
 import argparse
 import asyncio
+import json
 import re
 import time
+from pathlib import Path
 
 from app import OpenRouterTranscriber, Settings
 from cleanup import CleanupOptions
+from cleanup_cases import CASES, CleanupCase
 
 
-# Patterns check critical behavior while allowing reasonable inferred punctuation.
-CASES = [
-    ("quantities", "I paid forty-five dollars for thirty-seven kilos, thirty percent off.", [r"\$45", r"37kg", r"30%"], {}),
-    ("date-order", "March third. The third of March. Half past nine.", [r"March 3", r"3 March", r"9:30"], {}),
-    ("correction", "Let's meet at five, actually six PM.", [r"meet at 6pm", r"^(?!.*\b(?:actually|five|5)\b)"], {}),
-    ("numbered-list", "Tasks. First send the report. Second pay forty-five dollars. Third call Patel.", [r"(?m)^1\.\s+Send the report", r"(?m)^2\.\s+Pay \$45", r"(?m)^3\.\s+Call Patel"], {}),
-    ("bullets", "Shopping list. Apples, milk, bread.", [r"(?m)^-\s+Apples", r"(?m)^-\s+Milk", r"(?m)^-\s+Bread"], {}),
-    ("email", "Hi Alex. Can we meet at five thirty PM? Thanks, Patel.", [r"^Hi Alex[^\n]*\n", r"5:30pm\?", r"Thanks[^\n]*\nPatel[.!]?\s*$"], {}),
-    ("deletion", "Meet at five PM. Delete that last sentence.", [r"^$"], {"supports_discard": True}),
-    ("symbols", "Email john at acme dot com. The code is alpha underscore beta slash two.", [r"john@acme\.com", r"alpha_beta/2"], {}),
-    ("spelling", "My name is P A T E L. A P I. All caps urgent.", [r"Patel", r"API", r"URGENT"], {}),
-    ("vocabulary", "Send it to akme through click up.", [r"ACME", r"ClickUp"], {"vocabulary": [{"spoken": "akme", "written": "ACME"}, {"spoken": "click up", "written": "ClickUp"}]}),
-    ("voice", "I think it's probably roughly forty-five dollars. It works like a charm. One of a kind.", [r"I think", r"probably", r"roughly", r"it's", r"\$45", r"like a charm", r"one of a kind"], {}),
-]
+def selected_cases(name: str | None = None, category: str | None = None) -> list[CleanupCase]:
+    return [case for case in CASES if (name is None or case.name == name) and (category is None or case.category == category)]
 
 
-async def run(selected: str | None) -> int:
+def passes(case: CleanupCase, text: str, cleaned: bool) -> bool:
+    # Casing is a requirement. Case-insensitivity is explicit only where appropriate.
+    return cleaned and all(re.search(pattern, text, re.DOTALL) for pattern in case.patterns)
+
+
+async def run(selected: str | None, category: str | None = None, report: Path | None = None) -> int:
     settings = Settings.from_env()
     if not settings.cleanup_enabled:
         print("Cleanup is disabled. Set TEXT_CLEANUP_ENABLED=true and redeploy.")
         return 1
     transcriber = OpenRouterTranscriber(settings)
-    failures = 0
+    results = []
     try:
-        for name, transcript, patterns, values in CASES:
-            if selected and name != selected:
-                continue
+        for case in selected_cases(selected, category):
             started = time.monotonic()
-            text, cleaned = await transcriber.cleanup_or_original(transcript, CleanupOptions(**values))
-            passed = cleaned and all(re.search(pattern, text, re.IGNORECASE | re.DOTALL) for pattern in patterns)
-            failures += not passed
-            print(f"{'PASS' if passed else 'FAIL'} {name} duration_ms={int((time.monotonic()-started)*1000)} cleaned={cleaned}")
+            text, cleaned = await transcriber.cleanup_or_original(case.spoken, CleanupOptions(**case.options))
+            passed = passes(case, text, cleaned)
+            duration = int((time.monotonic()-started)*1000)
+            results.append({"case": case.name, "category": case.category, "passed": passed, "duration_ms": duration, "cleaned": cleaned, "expected": case.expected, "actual": text})
+            print(f"{'PASS' if passed else 'FAIL'} {case.name} duration_ms={duration} cleaned={cleaned}")
             if not passed:
                 # Only fixed synthetic samples are ever sent by this script.
                 print(f"  Synthetic result: {text!r}")
     finally:
         await transcriber.close()
+    failures = sum(not result["passed"] for result in results)
+    print(f"{len(results)-failures}/{len(results)} passed using {settings.cleanup_model}. This checks synthetic examples, not speech recognition.")
+    if report:
+        report.write_text(json.dumps({"model": settings.cleanup_model, "results": results}, ensure_ascii=False, indent=2) + "\n", encoding="utf-8")
     return 1 if failures else 0
 
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument("--case", choices=[case[0] for case in CASES])
+    selection = parser.add_mutually_exclusive_group()
+    selection.add_argument("--case", choices=[case.name for case in CASES])
+    selection.add_argument("--category", choices=sorted({case.category for case in CASES}))
+    parser.add_argument("--list", action="store_true", help="Print every input/expected result without making API calls.")
+    parser.add_argument("--report", type=Path, help="Save synthetic results as JSON.")
     args = parser.parse_args()
-    raise SystemExit(asyncio.run(run(args.case)))
+    if args.list:
+        for case in selected_cases(args.case, args.category):
+            print(f"{case.name} [{case.category}]\n  Say: {case.spoken}\n  Expected: {case.expected!r}")
+    else:
+        raise SystemExit(asyncio.run(run(args.case, args.category, args.report)))

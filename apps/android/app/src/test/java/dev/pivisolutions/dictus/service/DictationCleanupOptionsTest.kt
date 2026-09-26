@@ -23,11 +23,27 @@ class DictationCleanupOptionsTest {
             PreferenceKeys.DICTATION_CONTEXT_ENABLED to true,
             PreferenceKeys.DICTATION_LEARNING_ENABLED to false,
             PreferenceKeys.DICTATION_LEARNED_TERMS to setOf("ClickUp"),
+            PreferenceKeys.DICTATION_LEARNED_ALIASES to "click up\tClickUp",
             PreferenceKeys.DICTATION_VOCABULARY to "akme => ACME",
         )
-        val options = DictationCleanupOptions.from(preferences, "x".repeat(2000))
-        assertEquals(1000, options.getString("context").length)
+        val options = DictationCleanupOptions.from(preferences, "x".repeat(5000))
+        assertEquals(4000, options.getString("context").length)
         assertEquals(0, options.getJSONArray("learned_terms").length())
+        assertEquals(0, options.getJSONArray("learned_vocabulary").length())
         assertEquals("ACME", options.getJSONArray("vocabulary").getJSONObject(0).getString("written"))
+    }
+
+    @Test fun `learned aliases are sent when enabled but private editors exclude learning and context`() {
+        val preferences = preferencesOf(
+            PreferenceKeys.DICTATION_CONTEXT_ENABLED to true,
+            PreferenceKeys.DICTATION_LEARNED_TERMS to setOf("ClickUp"),
+            PreferenceKeys.DICTATION_LEARNED_ALIASES to "akme\tACME",
+        )
+        val enabled = DictationCleanupOptions.from(preferences, "ACME project")
+        assertEquals("ACME", enabled.getJSONArray("learned_vocabulary").getJSONObject(0).getString("written"))
+        val privateEditor = DictationCleanupOptions.from(preferences, "Private draft", learningAllowed = false)
+        assertEquals(0, privateEditor.getJSONArray("learned_terms").length())
+        assertEquals(0, privateEditor.getJSONArray("learned_vocabulary").length())
+        assertEquals("", privateEditor.getString("context"))
     }
 }

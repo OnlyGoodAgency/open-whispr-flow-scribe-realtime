@@ -9,7 +9,7 @@ once. If cleanup fails, the original committed transcript is still returned.
 
 From the repository root, review and commit the changes before pushing main to
 the separate realtime repository. Suggested commit name:
-`feat: add structured dictation cleanup and personal vocabulary`.
+`feat: complete dictation cleanup and automatic vocabulary learning`.
 
 In Coolify use:
 
@@ -25,7 +25,7 @@ updated Compose file from Git and redeploy the gateway; changing variables alone
 does not install the new source. `cleanup.py` must be present in the Docker image.
 
 In Android Studio sync Gradle and Run the app on the phone. This rebuild includes
-personal vocabulary settings and intentional deletion handling. Build an APK again
+automatic vocabulary learning and intentional deletion handling. Build an APK again
 after testing to share the updated client. Existing APKs get most final formatting
 from the updated server, but require a rebuild for the new settings/deletions.
 
@@ -48,18 +48,37 @@ Save supports up to 50 entries, each spelling up to 80 characters. Invalid or
 duplicate aliases must be corrected before Save becomes available. Matching
 literal aliases/casing are enforced even if the model times out.
 
-**Learn words I type** starts enabled. It retains up to 100 spelling hints after
-repeated typing or explicit correction rejection using the Dictus keyboard.
-These are hints rather than unconditional fuzzy replacements. Try typing a name
-twice with a space after each, then dictate it. It does not observe another
-keyboard's edits or learn directly from repeated speech. Turn it off to stop
-adding/sending these hints; **Clear learned dictation words** removes them.
+**Learn my vocabulary** starts enabled. It retains up to 100 spelling hints and
+100 heard-to-written aliases. Terms become hints after use in three separate
+dictations; repeating a term three times in one recording counts once. Dictus
+typing continues to contribute hints. Close spelling/casing edits to recently
+inserted or pasted dictations create learned aliases. Manual entries always win.
+Turn learning off to stop adding/sending hints; **Clear learned dictation words**
+removes hints, aliases and repetition counts, and cancels pending edit learning.
 
-**Use nearby text for spelling** starts disabled. If you turn it on, up to 500
-characters before and after the cursor in an eligible active field are sent as
-cloud spelling hints when dictating through the Dictus keyboard. Password/private
-fields are excluded. No entire-screen capture is used, and the context must not
-be copied into the output. Test the same uncommon name with context on/off.
+The Dictus keyboard tracks eligible-editor edits directly. For another keyboard
+or text outside the field, enable the existing **Floating microphone** service in
+Settings and Android's accessibility settings. It observes text-change events
+for recent dictation only. Paste detection recognizes the last output or explicitly
+copied history item for five
+minutes; spelling corrections are tracked for two minutes after insertion. Short
+multiword spelling changes are supported; semantic rewrites, quantity edits and
+contextual homophones are not memorized as permanent replacements.
+
+**Use screen text for spelling** starts disabled. If enabled, up to 500 characters
+before/after the cursor and, with accessibility enabled, visible text in the
+active app are combined into at most 4,000 characters sent as cloud hints.
+Password/Android-marked sensitive fields and editor privacy restrictions are
+excluded. There are no screenshots, OCR or background-app reads. A protected app
+that withholds text cannot supply screen/edit hints; ordinary dictation still
+works. Full field/screen prose is not saved by the learning store. Distinctive
+screen words seen across three dictations can become learned hints. Test the same
+uncommon name with context on/off; the rest of the screen must not be copied.
+
+Up to 50 manual/learned spellings are also sent to Scribe recognition, with manual
+terms first. ElevenLabs applies a
+[20% realtime keyterms premium](https://elevenlabs.io/docs/api-reference/speech-to-text/v-1-speech-to-text-realtime)
+to sessions using these hints. Empty vocabulary sends no keyterms.
 
 **Filter profanity** starts disabled. When enabled, the model uses `[redacted]`
 for profanity while preserving the surrounding words.
@@ -147,7 +166,43 @@ key. No real recordings or user text are used. `PASS` means the selected synthet
 example met the critical formatting checks within the configured deadline.
 `cleaned=False` indicates timeout/provider fallback. Review `FAIL` results before
 sharing the APK; passing these examples is not a guarantee for every recording.
-Run `python check_cleanup.py` for the full 11-example set.
+Run `python check_cleanup.py --list` to print every input and expected result
+without making API calls. Run `python check_cleanup.py --category vocabulary` to
+check one section, or `python check_cleanup.py --report /tmp/cleanup-results.json`
+for the full spec sample set and a JSON report. Each selected example makes one
+billed request. The runner checks exact casing as well as critical formatting.
+
+The eight sections in `cleanup_cases.py` map to every text-cleanup bullet in the
+client's spec. This is an acceptance suite to run against the deployed model;
+having an expected example in the suite does not mean the model has passed it.
+Review both PASS checks and actual outputs for voice/content preservation.
+
+## Test learning integration on the phone
+
+1. Enable **Learn my vocabulary** and clear previously learned words. Remove any
+   manual ACME entry for this learning test. Use an ordinary notes field.
+2. Dictate or paste a fresh result containing `akme`. Edit only that word to
+   `ACME` and leave it untouched for at least 1.2 seconds. Dictate it again: the
+   learned alias should produce `ACME`. Repeat using your usual keyboard with
+   Floating microphone accessibility enabled. Try changing `Acme` to `ACME` to
+   check that later casing edits update earlier learned aliases.
+3. Use a distinctive term such as `WisprFlow` across three separate recordings.
+   On the fourth recording it should be available as a spelling/recognition hint.
+   Repeat it three times in one recording to confirm that does not teach it early.
+4. Enable **Use screen text for spelling** and show `Patel` in the active app,
+   outside the dictation field. Dictate the name: cleanup can use its spelling but
+   must not copy other screen text. Repeat three times to check screen learning.
+5. Turn learning off and repeat an edit. Stored learned words must not be sent
+   or updated. Clear learning, turn it on again, and verify old hints are gone.
+   Manual dictionary entries must still win over conflicting learned hints.
+6. Try a password/private field and a field in a different app. Passwords must
+   contribute no learning/context. Edits outside the recent dictation span and
+   edits after two minutes must not teach replacements. Changing a price must
+   not teach that quantity as vocabulary.
+
+Android's accessibility/input APIs govern which editor and screen text is exposed.
+If an app hides those views, the app cannot learn edits from that screen. Test the
+client's actual target apps before claiming coverage for their daily workflow.
 
 All changes still need Git push, gateway redeployment, and rebuilding/installing
 the Android app. No new environment variables or additional API keys are needed.

@@ -219,21 +219,36 @@ text rather than accidentally triggering a second transcription.
 Under Settings, enable cloud transcription to access **Personal vocabulary**.
 Enter one preferred spelling per line, or `akme => ACME` for a heard alias, up to
 50 entries. Exact aliases and casing still apply if model cleanup times out.
-**Learn words I type** retains up to 100 spelling hints after repeated typing or
-explicit correction rejection with the Dictus keyboard. It preserves distinctive
-casing; hints do not override explicit vocabulary. Turn it off to stop sending and
-adding learned hints, or clear them from Settings.
+**Learn my vocabulary** retains up to 100 spelling hints and 100 heard-to-written
+corrections. It learns from Dictus typing, terms used across three separate
+dictations, and close spelling/casing edits to recently inserted or pasted
+dictation. Enable the existing **Floating microphone** accessibility service to
+observe edits made with other keyboards. The Dictus keyboard can observe its own
+eligible editor without that permission. Numbers and semantic rewrites are not
+learned as unconditional replacements. Explicit vocabulary wins over learned
+aliases. Turn learning off to stop adding/sending learned hints, or clear them
+from Settings; either action also invalidates pending edit tracking.
 
-**Use nearby text for spelling** is off by default. When enabled, the Dictus
-keyboard sends up to 1,000 characters around the cursor in an eligible active
-field for spelling hints. Password/private fields are excluded; context is never
-inserted as new dictation content. **Filter profanity** is off by default and uses
-`[redacted]` when enabled. No API key or model fields are required in these settings.
+**Use screen text for spelling** is off by default. When enabled, the Dictus
+keyboard reads up to 500 characters on each side of the cursor; the accessibility
+service can supply visible text from the active app's accessible screen. Combined
+context is capped at 4,000 characters and sent only as spelling hints. Passwords,
+Android-marked sensitive fields and eligible-editor privacy restrictions are
+respected. Apps that hide text from Android's input/accessibility APIs cannot
+provide that text. No screenshots, OCR, background-app reading or bypass of
+protected views is performed. Context must never be inserted as new content.
+Repeated distinctive screen terms can become learned hints when learning is on.
+**Filter profanity** is off by default and uses `[redacted]` when enabled.
 
-This does not read the entire screen, track edits made with other keyboards, or
-automatically learn vocabulary from repeated speech. Those require further input
-integration and validation. Contextual formatting depends on the selected model;
-local mocked tests do not establish accuracy for every accent/language. Use the
+Manual spellings, learned corrections and learned terms also reach Scribe as up
+to 50 prioritized recognition hints. ElevenLabs currently charges a
+[20% premium when realtime keyterms are used](https://elevenlabs.io/docs/api-reference/speech-to-text/v-1-speech-to-text-realtime).
+Full editor text is held briefly in memory only for edit detection; only bounded
+words/aliases/counts are persisted by the learning store. No API key or model
+fields are required in these settings, and there are no new environment variables.
+
+Contextual formatting depends on the selected model; local mocked tests do not
+establish accuracy for every accent/language. Use the
 [deployment and phone acceptance checklist](apps/server/CLEANUP_TESTING.md) to
 verify the client requirements against the deployed model.
 
@@ -251,7 +266,8 @@ Partial text replaces the current phrase; committed text appends a completed
 phrase. Send `{"type":"finish"}` to flush the last phrase, or `{"type":"cancel"}`
 to discard. The final event contains the full transcript after optional bounded
 cleanup, with `cleaned:true` when cleanup succeeded. Optional start field `cleanup`
-contains `vocabulary` (spoken/written pairs), `learned_terms`, `context`,
+contains `vocabulary` (spoken/written pairs), `learned_vocabulary` (observed
+spoken/written corrections), `learned_terms`, `context`,
 `filter_profanity`, and `supports_discard`. The batch equivalent is a JSON string
 in multipart field `cleanup_options`. Options are bounded and validated before
 contacting providers. Clients setting `supports_discard:true` must accept

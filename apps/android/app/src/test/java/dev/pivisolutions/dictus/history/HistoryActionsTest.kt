@@ -3,6 +3,8 @@ package dev.pivisolutions.dictus.history
 import android.content.ClipDescription
 import android.content.ClipboardManager
 import android.content.Intent
+import android.os.SystemClock
+import dev.pivisolutions.dictus.core.whisper.RecentDictation
 import androidx.test.core.app.ApplicationProvider
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertTrue
@@ -26,6 +28,8 @@ class HistoryActionsTest {
         actions.copy("synthetic private text")
 
         assertEquals("synthetic private text", clipboard.primaryClip?.getItemAt(0)?.text)
+        assertEquals("synthetic private text".indices,
+            RecentDictation.findInsertion("", "synthetic private text", SystemClock.elapsedRealtime()))
         assertEquals(
             true,
             clipboard.primaryClipDescription?.extras?.getBoolean(ClipDescription.EXTRA_IS_SENSITIVE),

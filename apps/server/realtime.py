@@ -11,7 +11,7 @@ from urllib.parse import urlencode
 
 from fastapi import WebSocket, WebSocketDisconnect
 from websockets.asyncio.client import connect
-from cleanup import CleanupOptions
+from cleanup import CleanupOptions, realtime_keyterms
 
 LOGGER = logging.getLogger("openwhisperflow.realtime")
 PROVIDER_URL = "wss://api.elevenlabs.io/v1/speech-to-text/realtime"
@@ -43,7 +43,7 @@ class RealtimeBridge:
         self.connector = connector or connect
         self.final_cleanup = final_cleanup
 
-    def connection(self, language: str | None):
+    def connection(self, language: str | None, options: CleanupOptions | None = None):
         if not self.api_key:
             raise RealtimeProviderError("realtime_not_configured")
         params = {
@@ -55,8 +55,11 @@ class RealtimeBridge:
         }
         if language and language != "auto":
             params["language_code"] = language
+        query = list(params.items())
+        if options is not None:
+            query.extend(("keyterms", term) for term in realtime_keyterms(options))
         return self.connector(
-            f"{PROVIDER_URL}?{urlencode(params)}",
+            f"{PROVIDER_URL}?{urlencode(query)}",
             additional_headers={"xi-api-key": self.api_key},
             open_timeout=START_TIMEOUT,
             close_timeout=2,
@@ -94,7 +97,7 @@ class RealtimeBridge:
                     language is not None and (not isinstance(language, str) or len(language) > 8)
                 ):
                     raise RealtimeProviderError("invalid_request")
-                async with self.connection(language) as provider:
+                async with self.connection(language, options) as provider:
                     await self.await_started(provider)
                     await client.send_json({"type": "ready", "model": "scribe_v2_realtime"})
                     LOGGER.info("ready connect_ms=%d", int((time.monotonic() - started) * 1000))

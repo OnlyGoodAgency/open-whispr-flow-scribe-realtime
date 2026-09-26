@@ -46,7 +46,7 @@ internal fun composeFloatingTextInsertion(
     } else {
         start
     }
-    val cleanSpoken = spoken.trim()
+    val cleanSpoken = spoken.trim(' ', '\t', '\r')
     if (cleanSpoken.isEmpty()) return FloatingTextInsertion(existing, start)
 
     val prefix = existing.substring(0, start)

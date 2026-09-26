@@ -364,3 +364,15 @@ def test_invalid_realtime_cleanup_options_do_not_open_provider():
             socket.send_json({"type": "start", "cleanup": {"filter_profanity": "false"}})
             assert socket.receive_json() == {"type": "error", "code": "invalid_request"}
     assert connector.calls == []
+
+
+def test_learned_and_explicit_vocabulary_reach_realtime_recognition():
+    from urllib.parse import parse_qs, urlparse
+    connector = FakeConnector()
+    with TestClient(make_app(connector)) as client:
+        with client.websocket_connect("/realtime/transcription", headers=AUTH) as socket:
+            socket.send_json({"type": "start", "cleanup": {"vocabulary": [{"spoken": "akme", "written": "ACME"}], "learned_vocabulary": [{"spoken": "click up", "written": "ClickUp"}], "learned_terms": ["Patel", "acme"]}})
+            assert socket.receive_json()["type"] == "ready"
+            socket.send_json({"type": "cancel"})
+    query = parse_qs(urlparse(connector.calls[0][0]).query)
+    assert query["keyterms"] == ["ACME", "ClickUp", "Patel"]

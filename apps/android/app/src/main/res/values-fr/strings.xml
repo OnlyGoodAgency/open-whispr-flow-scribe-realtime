@@ -266,7 +266,7 @@
     <string name="floating_mic_service_name">Microphone flottant OpenWhisperFlow</string>
     <string name="floating_mic_service_description">Affiche un microphone déplaçable lorsqu’un champ de texte hors mot de passe est actif et insère la transcription au niveau du curseur.</string>
     <string name="floating_mic_disclosure_title">Utiliser le clavier Samsung avec OpenWhisperFlow</string>
-    <string name="floating_mic_disclosure_body">Pour afficher un microphone près des champs de texte tout en gardant le clavier Samsung, OpenWhisperFlow a besoin de l’accès aux fonctionnalités d’accessibilité Android. Le service peut voir le champ actif et lit son texte existant uniquement sur l’appareil lors de l’insertion de votre transcription au niveau du curseur. Il ne lit jamais les champs de mot de passe et ne stocke ni ne partage le texte consulté ainsi. L’audio enregistré est traité par le modèle local ou le serveur partagé choisi dans les réglages de transcription.</string>
+    <string name="floating_mic_disclosure_body">OpenWhisperFlow utilise l’accessibilité Android pour insérer la dictée avec un autre clavier. Lorsque l’apprentissage est activé, le service peut apprendre vos corrections après insertion et conserve uniquement les mots et corrections sur l’appareil. Lorsque le contexte est activé, le texte accessible de l’application active est envoyé avec la dictée cloud comme indice orthographique. Les mots de passe et champs sensibles sont exclus. Vous pouvez désactiver ces options ou effacer les mots appris dans Réglages. L’audio utilise votre modèle local ou serveur partagé.</string>
     <string name="floating_mic_disclosure_accept">Continuer</string>
     <string name="floating_mic_disclosure_cancel">Annuler</string>
     <string name="floating_mic_record_cd">Démarrer la dictée vocale</string>
@@ -282,9 +282,9 @@
     <string name="floating_mic_settings_unavailable">Les réglages d’accessibilité ne sont pas disponibles sur cet appareil.</string>
     <string name="settings_dictation_vocabulary">Vocabulaire personnel</string>
     <string name="settings_dictation_vocabulary_hint">Un terme par ligne, jusqu’à 50 termes. Pour corriger un nom mal reconnu : Akme =&gt; Acme. Chaque orthographe peut contenir jusqu’à 80 caractères.</string>
-    <string name="settings_dictation_learning">Apprendre les mots que je tape</string>
-    <string name="settings_dictation_context">Utiliser le texte voisin pour l’orthographe</string>
-    <string name="settings_dictation_context_description">Avec le clavier Dictus, le texte voisin du champ actif est envoyé avec la dictée cloud pour aider à écrire les noms. Les champs privés et les mots de passe sont exclus.</string>
+    <string name="settings_dictation_learning">Apprendre mon vocabulaire</string>
+    <string name="settings_dictation_context">Utiliser le texte affiché pour l’orthographe</string>
+    <string name="settings_dictation_context_description">Apprend les termes répétés et les corrections après insertion. Activez le microphone flottant dans Accessibilité pour les autres claviers et le texte accessible à l’écran. Lorsque le contexte est activé, ce texte est envoyé avec la dictée cloud. Les champs sensibles et les mots de passe sont exclus.</string>
     <string name="settings_dictation_profanity">Filtrer les grossièretés</string>
     <string name="settings_dictation_clear_learned">Effacer les mots appris pour la dictée</string>
     <string name="settings_dictation_save">Enregistrer</string>

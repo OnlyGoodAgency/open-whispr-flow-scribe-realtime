@@ -12,6 +12,8 @@ import android.graphics.PixelFormat
 import android.graphics.drawable.GradientDrawable
 import android.os.Bundle
 import android.os.IBinder
+import android.os.Build
+import android.os.SystemClock
 import android.view.Gravity
 import android.view.MotionEvent
 import android.view.View
@@ -19,6 +21,7 @@ import android.view.ViewConfiguration
 import android.view.WindowManager
 import android.view.accessibility.AccessibilityEvent
 import android.view.accessibility.AccessibilityNodeInfo
+import android.view.accessibility.AccessibilityWindowInfo
 import android.widget.ImageButton
 import android.widget.ImageView
 import android.widget.Toast
@@ -35,6 +38,12 @@ import dev.pivisolutions.dictus.core.service.DictationController
 import dev.pivisolutions.dictus.core.service.DictationState
 import dev.pivisolutions.dictus.core.service.SttEngineState
 import dev.pivisolutions.dictus.core.service.TranscriptionRetention
+import dev.pivisolutions.dictus.core.whisper.DictationLearning
+import dev.pivisolutions.dictus.core.whisper.DictationLearningStore
+import dev.pivisolutions.dictus.core.whisper.DictationEditTracker
+import dev.pivisolutions.dictus.core.whisper.DictationScreenContext
+import dev.pivisolutions.dictus.core.whisper.RecentDictation
+import dev.pivisolutions.dictus.ime.input.EditorEligibilityPolicy
 import dev.pivisolutions.dictus.service.DictationService
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
@@ -42,8 +51,6 @@ import kotlinx.coroutines.Job
 import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.cancel
 import kotlinx.coroutines.delay
-import kotlinx.coroutines.flow.distinctUntilChanged
-import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.launch
 import timber.log.Timber
 import kotlin.math.abs
@@ -56,7 +63,8 @@ internal interface FloatingMicEntryPoint {
 
 /**
  * Shows a draggable microphone beside editable fields while any keyboard remains selected.
- * Accessibility text access is limited to the focused, non-password editor at insertion time.
+ * Optional learning observes edits to recent dictations; context reads accessible screen text
+ * only at a recording request. Both exclude sensitive fields and obey live preferences.
  */
 class FloatingMicAccessibilityService : AccessibilityService() {
     private val scope = CoroutineScope(SupervisorJob() + Dispatchers.Main.immediate)
@@ -73,6 +81,11 @@ class FloatingMicAccessibilityService : AccessibilityService() {
     private var stateJob: Job? = null
     private var engineJob: Job? = null
     private var consentGranted = false
+    private var learningEnabled = true
+    private var contextEnabled = false
+    private val learning by lazy { DictationLearningStore(dataStore) }
+    private val editTracker = DictationEditTracker()
+    private var editJob: Job? = null
     private var pendingStart = false
     private var ownsRecording = false
     private var dictationState: DictationState = DictationState.Idle
@@ -101,13 +114,16 @@ class FloatingMicAccessibilityService : AccessibilityService() {
     override fun onServiceConnected() {
         super.onServiceConnected()
         createBubble()
+        DictationScreenContext.register(this) { packageName -> readScreenContext(packageName) }
         scope.launch {
-            dataStore.data
-                .map { it[PreferenceKeys.FLOATING_MIC_DISCLOSURE_ACCEPTED] == true }
-                .distinctUntilChanged()
-                .collect { accepted ->
+            dataStore.data.collect { prefs ->
+                    val accepted = prefs[PreferenceKeys.FLOATING_MIC_DISCLOSURE_ACCEPTED] == true
+                    val changed = consentGranted != accepted
                     consentGranted = accepted
-                    if (accepted) bindDictationService() else disconnectDictationService()
+                    learningEnabled = prefs[PreferenceKeys.DICTATION_LEARNING_ENABLED] != false
+                    contextEnabled = prefs[PreferenceKeys.DICTATION_CONTEXT_ENABLED] == true
+                    if (!learningEnabled || !accepted) { editTracker.clear(); editJob?.cancel() }
+                    if (changed) { if (accepted) bindDictationService() else disconnectDictationService() }
                     updateBubbleVisibility()
                 }
         }
@@ -117,6 +133,9 @@ class FloatingMicAccessibilityService : AccessibilityService() {
         if (!consentGranted) return
         val source = event?.source
         if (source != null && isEligibleEditor(source)) rememberTarget(source)
+        if (event?.eventType == AccessibilityEvent.TYPE_VIEW_TEXT_CHANGED && source != null) {
+            observeDictationEdit(event, source)
+        }
         updateBubbleVisibility()
     }
 
@@ -128,6 +147,9 @@ class FloatingMicAccessibilityService : AccessibilityService() {
     }
 
     override fun onDestroy() {
+        DictationScreenContext.unregister(this)
+        editTracker.clear()
+        editJob?.cancel()
         pendingStart = false
         if (ownsRecording) controller?.cancelRecording()
         ownsRecording = false
@@ -212,9 +234,9 @@ class FloatingMicAccessibilityService : AccessibilityService() {
                 if (!ownsRecording) return
                 scope.launch {
                     val text = activeController.confirmAndTranscribe(TranscriptionRetention.EPHEMERAL)
-                    if (text.isNullOrBlank()) {
+                    if (text == null) {
                         showToast(R.string.floating_mic_no_transcription)
-                    } else if (!insertIntoFocusedEditor(text)) {
+                    } else if (text.isNotEmpty() && !insertIntoFocusedEditor(text)) {
                         showToast(R.string.floating_mic_insert_failed)
                     }
                 }
@@ -246,6 +268,10 @@ class FloatingMicAccessibilityService : AccessibilityService() {
     }
 
     private fun launchRecordingActivity() {
+        val editor = findEditableFocus() ?: return
+        val canLearn = isLearningEligible(editor)
+        controller?.setDictationLearningAllowed(canLearn)
+        controller?.setCleanupContext(if (canLearn && contextEnabled) DictationScreenContext.read(editor.packageName?.toString()) else "")
         try {
             ownsRecording = true
             startActivity(
@@ -291,6 +317,11 @@ class FloatingMicAccessibilityService : AccessibilityService() {
             )
         }
         if (!node.performAction(AccessibilityNodeInfo.ACTION_SET_TEXT, setText)) return false
+        if (learningEnabled && isLearningEligible(node)) {
+            val insertedStart = minOf(start, end).coerceIn(0, existing.length)
+            val insertedLength = insertion.text.length - existing.length + (maxOf(start, end).coerceIn(insertedStart, existing.length) - insertedStart)
+            editTracker.arm(fieldIdentity(node), insertion.text, insertedStart, insertedLength, SystemClock.elapsedRealtime())
+        }
         val selection = Bundle().apply {
             putInt(AccessibilityNodeInfo.ACTION_ARGUMENT_SELECTION_START_INT, insertion.cursor)
             putInt(AccessibilityNodeInfo.ACTION_ARGUMENT_SELECTION_END_INT, insertion.cursor)
@@ -316,6 +347,70 @@ class FloatingMicAccessibilityService : AccessibilityService() {
     private fun isEligibleEditor(node: AccessibilityNodeInfo): Boolean =
         node.isEditable && node.isEnabled && node.isFocused && !node.isPassword &&
             node.actionList.any { it.id == AccessibilityNodeInfo.ACTION_SET_TEXT }
+
+    private fun isLearningEligible(node: AccessibilityNodeInfo): Boolean = isEligibleEditor(node) &&
+        !isSensitive(node) && node.packageName?.toString() != packageName &&
+        (node.inputType == 0 || EditorEligibilityPolicy.resolve(node.inputType, 0).suggestionEligible)
+
+    private fun isSensitive(node: AccessibilityNodeInfo): Boolean = node.isPassword ||
+        (Build.VERSION.SDK_INT >= 34 && node.isAccessibilityDataSensitive)
+
+    private fun fieldIdentity(node: AccessibilityNodeInfo): String =
+        "${node.packageName}:${node.windowId}:${node.hashCode()}"
+
+    private fun observeDictationEdit(event: AccessibilityEvent, node: AccessibilityNodeInfo) {
+        if (!learningEnabled || event.isPassword || !isLearningEligible(node)) {
+            editTracker.clear(); editJob?.cancel(); return
+        }
+        val before = event.beforeText?.toString() ?: return
+        val after = resolveExistingEditorText(node.text, node.hintText, node.isShowingHintText, node.textSelectionStart, node.textSelectionEnd)
+        if (before.length > DictationLearning.MAX_EDITOR || after.length > DictationLearning.MAX_EDITOR) return
+        val identity = fieldIdentity(node)
+        val now = SystemClock.elapsedRealtime()
+        RecentDictation.findInsertion(before, after, now)?.let { range ->
+            editTracker.arm(identity, after, range.first, range.last-range.first+1, now)
+        }
+        editJob?.cancel()
+        editJob = scope.launch {
+            delay(1200)
+            editTracker.settle(identity, after, SystemClock.elapsedRealtime())?.let { term ->
+                runCatching { learning.learnCorrection(term) }
+                    .onFailure { Timber.w("Dictation correction could not be learned") }
+            }
+        }
+    }
+
+    private fun readScreenContext(requestedPackage: String?): String {
+        if (!consentGranted || !contextEnabled) return ""
+        val editor = findEditableFocus() ?: return ""
+        if (!isLearningEligible(editor) || (requestedPackage != null && editor.packageName?.toString() != requestedPackage)) return ""
+        val root = windows.firstOrNull {
+            it.type == AccessibilityWindowInfo.TYPE_APPLICATION && (it.isActive || it.isFocused) &&
+                it.root?.packageName == editor.packageName
+        }?.root ?: rootInActiveWindow ?: return ""
+        if (root.packageName != editor.packageName) return ""
+        val queue = ArrayDeque<AccessibilityNodeInfo>()
+        queue.add(root)
+        val text = StringBuilder()
+        var visited = 0
+        while (queue.isNotEmpty() && visited++ < 150 && text.length < DictationLearning.MAX_CONTEXT) {
+            val node = queue.removeFirst()
+            if (node.isVisibleToUser && !isSensitive(node)) {
+                node.text?.takeIf { it.isNotBlank() && !node.isShowingHintText }?.let {
+                    text.append(it.take(DictationLearning.MAX_CONTEXT-text.length)).append('\n')
+                }
+                for (index in 0 until minOf(node.childCount, 50)) {
+                    if (queue.size + visited >= 150) break
+                    node.getChild(index)?.let(queue::add)
+                }
+            }
+            @Suppress("DEPRECATION")
+            node.recycle()
+        }
+        @Suppress("DEPRECATION")
+        queue.forEach { it.recycle() }
+        return text.toString().take(DictationLearning.MAX_CONTEXT)
+    }
 
     @Suppress("DEPRECATION")
     private fun rememberTarget(node: AccessibilityNodeInfo) {
