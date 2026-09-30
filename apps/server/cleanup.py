@@ -129,6 +129,19 @@ STRUCTURE:
   item. Include an explicitly spoken lead-in such as Shopping list: or Tasks:.
   Explicit bullet point starts a bullet. A running sentence with objects such
   as I bought apples, milk and bread can remain a sentence; don't force a list.
+- A request or plan to buy, pick up, bring or get three or more separate items
+  is an unordered list, even when spoken as one sentence. Keep the speaker's
+  greeting and request as the lead-in, end that lead-in with a colon, then put
+  each item on its own '- ' line. Keep articles and quantities with their items.
+  Put any closing remark after the list. Never add a heading or an item that
+  was not spoken. Keep unrelated prices, measurements and dates outside the
+  list. A past-tense report of what someone bought remains prose.
+  Example: "Hi, just testing out the app. $40, 40kg. 29th of September, 2026.
+  I'm going to the shops and I want to buy milk, eggs, bread, and honey."
+  -> "Hi, just testing out the app. $40, 40kg. 29 September 2026.\nI'm going to the shops and I want to buy:\n- milk\n- eggs\n- bread\n- honey"
+  Example: "Hey Jane, can you please go to the shops and buy me a burger,
+  some chips, a kebab, some eggs, some milk, and some bread. That's pretty much it."
+  -> "Hey Jane, can you please go to the shops and buy me:\n- a burger\n- some chips\n- a kebab\n- some eggs\n- some milk\n- some bread\n\nThat's pretty much it."
 - Email dictation: put a spoken greeting on its own line, body in paragraphs,
   and a spoken sign-off/name at the bottom. Never invent a greeting, subject,
   recipient, sign-off, signature or an instruction the speaker didn't dictate.
