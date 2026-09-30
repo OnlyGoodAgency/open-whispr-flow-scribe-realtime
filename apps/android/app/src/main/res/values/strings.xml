@@ -2,8 +2,8 @@
 <resources>
 
     <!-- Onboarding: Welcome screen (Step 1) -->
-    <string name="onboarding_welcome_wordmark">OpenWhisperFlow</string>
-    <string name="onboarding_welcome_tagline">Voice dictation, 100\u00a0% offline</string>
+    <string name="onboarding_welcome_wordmark">OpenWhisprFlow</string>
+    <string name="onboarding_welcome_tagline">Voice dictation</string>
     <string name="onboarding_welcome_cta">Start</string>
 
     <!-- Onboarding: Microphone permission screen (Step 2) -->

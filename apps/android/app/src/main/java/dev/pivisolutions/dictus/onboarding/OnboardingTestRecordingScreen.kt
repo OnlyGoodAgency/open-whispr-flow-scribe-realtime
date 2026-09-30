@@ -7,7 +7,8 @@ import dev.pivisolutions.dictus.core.whisper.RecentDictation
 import android.content.Context
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
-import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Spacer
@@ -147,13 +148,14 @@ fun OnboardingTestRecordingScreen(
         // in the bottom block to match the iOS layout.
         when {
             hasResult -> {
+                val resultScroll = rememberScrollState()
                 Column(
                     modifier = Modifier
-                        .fillMaxWidth()
+                        .fillMaxSize()
                         .align(Alignment.TopCenter)
-                        .padding(top = 180.dp, bottom = 240.dp),
+                        .padding(top = 80.dp, bottom = 240.dp)
+                        .verticalScroll(resultScroll),
                     horizontalAlignment = Alignment.CenterHorizontally,
-                    verticalArrangement = Arrangement.Center,
                 ) {
                     Text(
                         text = stringResource(R.string.onboarding_test_recording_result),

@@ -10,7 +10,6 @@ import androidx.compose.foundation.clickable
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.foundation.layout.heightIn
-import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Spacer
@@ -191,13 +190,14 @@ fun RecordingScreen(
                 }
             }
             hasResult -> {
+                val resultScroll = rememberScrollState()
                 Column(
                     modifier = Modifier
-                        .fillMaxWidth()
+                        .fillMaxSize()
                         .align(Alignment.TopCenter)
-                        .padding(top = 160.dp, bottom = 240.dp),
+                        .padding(top = 80.dp, bottom = 200.dp)
+                        .verticalScroll(resultScroll),
                     horizontalAlignment = Alignment.CenterHorizontally,
-                    verticalArrangement = Arrangement.Center,
                 ) {
                     Text(
                         text = stringResource(R.string.recording_result_title),

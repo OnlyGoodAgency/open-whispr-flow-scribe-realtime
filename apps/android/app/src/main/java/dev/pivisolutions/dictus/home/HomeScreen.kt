@@ -124,9 +124,9 @@ fun HomeScreen(
 
         Spacer(modifier = Modifier.height(12.dp))
 
-        // "Dictus" wordmark in accent blue
+        // OpenWhisperFlow wordmark in accent blue
         Text(
-            text = "Dictus",
+            text = stringResource(R.string.onboarding_welcome_wordmark),
             color = DictusColors.Accent,
             fontSize = 28.sp,
             fontWeight = FontWeight.Bold,
@@ -209,7 +209,7 @@ fun HomeScreen(
                                     Context.CLIPBOARD_SERVICE,
                                 ) as ClipboardManager
                                 clipboard.setPrimaryClip(
-                                    ClipData.newPlainText("Dictus", lastTranscription),
+                                    ClipData.newPlainText(context.getString(R.string.onboarding_welcome_wordmark), lastTranscription),
                                 )
                                 RecentDictation.publish(lastTranscription.orEmpty(), SystemClock.elapsedRealtime())
                             },

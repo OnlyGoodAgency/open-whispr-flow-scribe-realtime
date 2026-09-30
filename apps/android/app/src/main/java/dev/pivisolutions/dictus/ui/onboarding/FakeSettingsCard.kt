@@ -104,9 +104,9 @@ fun FakeSettingsCard(
             modifier = Modifier.padding(start = 72.dp),
         )
 
-        // Dictus entry (toggle 2 — animates on second)
+        // OpenWhisperFlow entry (toggle 2 — animates on second)
         KeyboardEntryRow(
-            name = "Dictus Keyboard",
+            name = stringResource(R.string.onboarding_welcome_wordmark) + " Keyboard",
             subtitle = stringResource(R.string.fake_settings_dictus_subtitle),
             isOn = toggle2On,
             icon = {
