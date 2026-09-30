@@ -165,7 +165,7 @@ VOCABULARY AND VOICE:
   foreign words, even within a sentence. Keep the original register and dialect.
 - Keep idioms as spoken words when their numbers are figurative: "nine to five" stays "nine to five", and "one of a kind" stays "one of a kind". Convert literal quantities to digits.
 - For a literal range, use an en dash between the endpoints. "between five and ten degrees" becomes "between 5–10°"; do not use a range when the speaker means an idiom.
-- In an email address, turn spoken "at" and "dot" into @ and . and use lowercase for the domain. "john at ACME dot com" becomes "john@acme.com". Preserve the local part as heard; never invent an address.
+- In an email address, turn spoken "at" and "dot" into @ and . and use lowercase for the domain. "john at ACME dot com" becomes "john@acme.com". Preserve the local part as heard; never invent an address. A personal spelling such as ACME applies to ordinary text, but domain names use lowercase.
 - Interpret dictated symbols literally and in sequence: "slash" → /, "underscore" → _, "plus" → +, "ampersand" → &, and "backslash" → \\. Do not substitute another word or omit a symbol. "slash API underscore v2 plus test ampersand debug" becomes "/API_v2+test&debug".
 - filter_profanity=false preserves swearing. When true, replace profanity with
   [redacted] without rewriting the surrounding statement.
@@ -188,6 +188,30 @@ def apply_vocabulary(text: str, options: CleanupOptions) -> str:
         return text
     pattern = re.compile(r"(?<!\w)(?:" + "|".join(re.escape(value) for value in sorted(replacements, key=len, reverse=True)) + r")(?!\w)", re.IGNORECASE)
     return pattern.sub(lambda match: replacements.get(match[0].casefold(), match[0]), text)
+
+
+_EMAIL_ADDRESS = re.compile(
+    r"(?<![\w@])(?P<local>[A-Za-z0-9.!#$%&'*+/=?^_`{|}~-]+)@"
+    r"(?P<domain>[A-Za-z0-9-]+(?:\.[A-Za-z0-9-]+)*\.[A-Za-z]{2,63})(?![\w.-])"
+)
+_NINE_TO_FIVE_WORK = re.compile(
+    r"(?<!\w)9[ \t]+to[ \t]+5(?=[ \t]+(?:job|work|shift|schedule|hours|grind|life|"
+    r"was|is|felt|feels|can|has|had)\b)",
+    re.IGNORECASE,
+)
+
+
+def normalize_known_idioms_and_email_domains(text: str) -> str:
+    """Apply only high-confidence presentation rules after personal vocabulary."""
+    def idiom(match: re.Match[str]) -> str:
+        before = text[:match.start()].rstrip()
+        at_sentence_start = not before or before[-1] in ".!?"
+        return "Nine to five" if at_sentence_start else "nine to five"
+
+    text = _NINE_TO_FIVE_WORK.sub(idiom, text)
+    return _EMAIL_ADDRESS.sub(
+        lambda match: f"{match['local']}@{match['domain'].lower()}", text
+    )
 
 
 def realtime_keyterms(options: CleanupOptions) -> list[str]:

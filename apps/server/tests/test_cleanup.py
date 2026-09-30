@@ -123,6 +123,21 @@ def test_explicit_vocabulary_wins_preserving_word_boundaries():
     assert apply_vocabulary("Akme and github, not akmeology.", options) == "Acme and GitHUB, not akmeology."
 
 
+@pytest.mark.parametrize(("model_output", "expected"), [
+    ("9 to 5 was exhausting.", "Nine to five was exhausting."),
+    ("My 9 to 5 job was exhausting.", "My nine to five job was exhausting."),
+    ("Change from 9 to 5.", "Change from 9 to 5."),
+    ("Email john@acme.com. ACME signed it.", "Email john@acme.com. ACME signed it."),
+])
+def test_cleanup_preserves_work_idiom_and_email_domain_with_personal_vocabulary(model_output, expected):
+    options = CleanupOptions(vocabulary=[{"spoken": "acme", "written": "ACME"}])
+
+    def handler(request):
+        return httpx.Response(200, json={"choices": [{"message": {"content": json.dumps({"text": model_output, "discarded": False})}}]})
+
+    assert run_cleanup(handler, text=model_output, options=options) == (expected, True)
+
+
 def test_observed_edit_alias_applies_but_manual_dictionary_wins():
     options = CleanupOptions(learned_vocabulary=[{"spoken": "akme", "written": "ACME"}], vocabulary=[{"spoken": "Acme", "written": "Acme"}])
     assert apply_vocabulary("Akme and ACME.", options) == "Acme and Acme."
