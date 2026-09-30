@@ -3,10 +3,9 @@ package dev.pivisolutions.dictus.history
 import android.content.Context
 import androidx.room.Room
 import androidx.test.core.app.ApplicationProvider
-import kotlinx.coroutines.async
-import kotlinx.coroutines.CoroutineStart
-import kotlinx.coroutines.flow.take
-import kotlinx.coroutines.flow.toList
+import kotlinx.coroutines.channels.Channel
+import kotlinx.coroutines.flow.collect
+import kotlinx.coroutines.launch
 import kotlinx.coroutines.runBlocking
 import kotlinx.coroutines.withTimeout
 import org.junit.After
@@ -35,17 +34,21 @@ class RoomTranscriptionHistoryRepositoryTest {
 
     @Test
     fun `insert and delete re-emit and unknown id is false`() = runBlocking {
-        val emissions = async(start = CoroutineStart.UNDISPATCHED) {
-            withTimeout(5_000) { repository.observeAll().take(3).toList() }
+        val emissions = Channel<List<TranscriptionHistoryEntry>>(Channel.UNLIMITED)
+        val observer = launch {
+            repository.observeAll().collect { emissions.send(it) }
         }
-        val id = repository.insert(entry())
-        assertTrue(repository.deleteById(id))
-
-        val values = emissions.await()
-        assertEquals(1, values.first().size)
-        assertEquals(0, values.last().size)
-        assertFalse(repository.deleteById(id))
-        assertFalse(repository.deleteById(Long.MAX_VALUE))
+        try {
+            assertTrue(withTimeout(5_000) { emissions.receive() }.isEmpty())
+            val id = repository.insert(entry())
+            assertEquals(1, withTimeout(5_000) { emissions.receive() }.size)
+            assertTrue(repository.deleteById(id))
+            assertTrue(withTimeout(5_000) { emissions.receive() }.isEmpty())
+            assertFalse(repository.deleteById(id))
+            assertFalse(repository.deleteById(Long.MAX_VALUE))
+        } finally {
+            observer.cancel()
+        }
     }
 
     private fun entry() = TranscriptionHistoryEntry(
