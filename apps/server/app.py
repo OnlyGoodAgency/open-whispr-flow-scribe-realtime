@@ -21,7 +21,7 @@ from jwt.exceptions import PyJWTError
 from pydantic import BaseModel
 
 from realtime import RealtimeBridge, RealtimeProviderError
-from cleanup import CLEANUP_PROMPT, CLEANUP_SCHEMA, CleanupOptions, apply_vocabulary, normalize_formats
+from cleanup import CLEANUP_PROMPT, CLEANUP_SCHEMA, CleanupOptions, apply_vocabulary, normalize_email_layout, normalize_formats
 
 
 LOGGER = logging.getLogger("openwhisperflow")
@@ -299,7 +299,7 @@ class OpenRouterTranscriber:
                 cleaned = ""
         except (ValueError, KeyError, IndexError, TypeError, AttributeError) as error:
             raise ProviderError("Text cleanup provider returned invalid JSON") from error
-        return apply_vocabulary(normalize_formats(cleaned), options)
+        return apply_vocabulary(normalize_email_layout(normalize_formats(cleaned)), options)
 
     async def cleanup_or_original(self, transcript: str, options: CleanupOptions | None = None) -> tuple[str, bool]:
         """One bounded cleanup attempt. Never retry or re-transcribe on failure."""

@@ -6,7 +6,7 @@ import httpx
 import pytest
 
 from app import OpenRouterTranscriber, Settings
-from cleanup import CleanupOptions, apply_vocabulary, normalize_formats, realtime_keyterms
+from cleanup import CleanupOptions, apply_vocabulary, normalize_email_layout, normalize_formats, realtime_keyterms
 
 
 @pytest.mark.parametrize(("spoken", "expected"), [
@@ -32,6 +32,31 @@ from cleanup import CleanupOptions, apply_vocabulary, normalize_formats, realtim
 ])
 def test_explicit_quantities_and_preservation(spoken, expected):
     assert normalize_formats(spoken) == expected
+
+
+def test_email_layout_repairs_spoken_greeting_and_signoff():
+    spoken = "Hi Alex.\nCan we meet at 5:30pm?\nThanks.\nPatel."
+    expected = "Hi Alex,\n\nCan we meet at 5:30pm?\n\nThanks,\nPatel"
+    assert normalize_email_layout(spoken) == expected
+    assert normalize_email_layout(expected) == expected
+
+
+def test_email_layout_preserves_body_paragraphs_and_non_email_notes():
+    spoken = "Hi Alex.\nFirst point.\n\nSecond point.\n\nThanks.\nPatel."
+    assert normalize_email_layout(spoken) == "Hi Alex,\n\nFirst point.\n\nSecond point.\n\nThanks,\nPatel"
+    note = "Hi Alex.\nCan we meet at 5:30pm?\nThe answer is thanks.\nPatel agreed."
+    assert normalize_email_layout(note) == note
+
+
+def test_cleanup_formats_observed_email_output():
+    model_output = "Hi Alex.\nCan we meet at 5:30pm?\nThanks.\nPatel."
+
+    def handler(request):
+        return httpx.Response(200, json={"choices": [{"message": {"content": json.dumps({"text": model_output, "discarded": False})}}]})
+
+    assert run_cleanup(handler, text="Hi Alex. Can we meet at five thirty PM? Thanks. Patel.") == (
+        "Hi Alex,\n\nCan we meet at 5:30pm?\n\nThanks,\nPatel", True,
+    )
 
 
 SETTINGS = Settings(client_api_key="x" * 32, openrouter_api_key="not-a-real-key")

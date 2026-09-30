@@ -145,6 +145,9 @@ STRUCTURE:
 - Email dictation: put a spoken greeting on its own line, body in paragraphs,
   and a spoken sign-off/name at the bottom. Never invent a greeting, subject,
   recipient, sign-off, signature or an instruction the speaker didn't dictate.
+  A short greeting and sign-off are not standalone sentences: "Hi Alex. Can we
+  meet at 5:30pm? Thanks. Patel." -> "Hi Alex,\n\nCan we meet at
+  5:30pm?\n\nThanks,\nPatel". Keep the spoken words and name exactly.
 - Lists and emails can include numeric formatting, corrections and spoken
   punctuation controls. Preserve all intended content and ordering.
 
@@ -292,3 +295,20 @@ def normalize_formats(text: str) -> str:
         offset = match.end()
     result.append(pattern.sub(substitute, text[offset:]))
     return "".join(result)
+
+
+def normalize_email_layout(text: str) -> str:
+    """Fix a clearly separated greeting/body/sign-off without inventing email parts."""
+    lines = text.strip().splitlines()
+    filled = [index for index, line in enumerate(lines) if line.strip()]
+    if len(filled) < 4:
+        return text
+    greeting = re.fullmatch(r"((?:Hi|Hello|Dear)\s+[\w' -]{1,60})[,.!?]", lines[filled[0]].strip(), re.IGNORECASE)
+    signoff = re.fullmatch(r"(Thanks|Thank you|Best|Best regards|Regards|Cheers|Sincerely)[,.!?]", lines[filled[-2]].strip(), re.IGNORECASE)
+    name = re.fullmatch(r"[\w'-]+(?:\s+[\w'-]+){0,2}[.]?", lines[filled[-1]].strip())
+    if not (greeting and signoff and name):
+        return text
+    body = "\n".join(lines[filled[0] + 1:filled[-2]]).strip()
+    if not body:
+        return text
+    return f"{greeting[1].rstrip()},\n\n{body}\n\n{signoff[1]},\n{lines[filled[-1]].strip().removesuffix('.')}"
