@@ -163,6 +163,10 @@ VOCABULARY AND VOICE:
   matching aliases, but explicit vocabulary always wins over learned corrections.
 - Leave unusual names unusual when there is no applicable hint. Do not translate
   foreign words, even within a sentence. Keep the original register and dialect.
+- Keep idioms as spoken words when their numbers are figurative: "nine to five" stays "nine to five", and "one of a kind" stays "one of a kind". Convert literal quantities to digits.
+- For a literal range, use an en dash between the endpoints. "between five and ten degrees" becomes "between 5–10°"; do not use a range when the speaker means an idiom.
+- In an email address, turn spoken "at" and "dot" into @ and . and use lowercase for the domain. "john at ACME dot com" becomes "john@acme.com". Preserve the local part as heard; never invent an address.
+- Interpret dictated symbols literally and in sequence: "slash" → /, "underscore" → _, "plus" → +, "ampersand" → &, and "backslash" → \\. Do not substitute another word or omit a symbol. "slash API underscore v2 plus test ampersand debug" becomes "/API_v2+test&debug".
 - filter_profanity=false preserves swearing. When true, replace profanity with
   [redacted] without rewriting the surrounding statement.
 """
