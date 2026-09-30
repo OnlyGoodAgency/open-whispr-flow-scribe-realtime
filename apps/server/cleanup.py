@@ -192,7 +192,7 @@ def apply_vocabulary(text: str, options: CleanupOptions) -> str:
 
 _EMAIL_ADDRESS = re.compile(
     r"(?<![\w@])(?P<local>[A-Za-z0-9.!#$%&'*+/=?^_`{|}~-]+)@"
-    r"(?P<domain>[A-Za-z0-9-]+(?:\.[A-Za-z0-9-]+)*\.[A-Za-z]{2,63})(?![\w.-])"
+    r"(?P<domain>[A-Za-z0-9-]+(?:\.[A-Za-z0-9-]+)*\.[A-Za-z]{2,63})(?![\w-])"
 )
 _NINE_TO_FIVE_WORK = re.compile(
     r"(?<!\w)9[ \t]+to[ \t]+5(?=[ \t]+(?:job|work|shift|schedule|hours|grind|life|"

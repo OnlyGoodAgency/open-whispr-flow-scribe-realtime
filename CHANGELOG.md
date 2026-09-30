@@ -19,6 +19,12 @@ This log tracks changes to the OpenWhisperFlow fork, not the upstream Dictus pro
 
 - Add [SOP.md](SOP.md) for configuration, testing, release, troubleshooting, and rollback. The documentation does not itself deploy or distribute an app.
 
+### Build fixes
+
+- Handle a trailing sentence period after an email address when lowercasing its domain, so Personal Vocabulary cannot change `john@acme.com.` back to `john@ACME.com.`.
+- Update Android CI to the SDK setup action that no longer requests Google's removed `tools` package.
+- Switch Windows CI native builds to Ninja to address the observed ggml Vulkan shader helper install/configure race; confirm in the next Actions run.
+
 ## 2026-09-30 — committed source changes
 
 - `796ce2c` — Add a final server formatting rule for the work idiom “nine to five” and lowercase email domains after Personal Vocabulary has been applied. Literal numeric changes stay numeric; ordinary `ACME` retains its configured casing. The user reported successful manual testing, but automated tests for this latest fix were not run in the current environment because `pytest` was unavailable.
