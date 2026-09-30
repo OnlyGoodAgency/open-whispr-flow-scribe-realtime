@@ -229,11 +229,12 @@ fn get_filler_words_for_language(lang: &str) -> &'static [&'static str] {
     }
 }
 
-static MULTI_SPACE_PATTERN: Lazy<Regex> = Lazy::new(|| Regex::new(r"\s{2,}").unwrap());
+// Collapse horizontal spacing without destroying newlines produced by cleanup.
+static MULTI_SPACE_PATTERN: Lazy<Regex> = Lazy::new(|| Regex::new(r"[^\S\r\n]{2,}").unwrap());
 
 /// Collapses repeated words (3+ repetitions) to a single instance.
 /// E.g., "wh wh wh wh" -> "wh", "I I I I" -> "I"
-fn collapse_stutters(text: &str) -> String {
+fn collapse_stutters_in_line(text: &str) -> String {
     let words: Vec<&str> = text.split_whitespace().collect();
     if words.is_empty() {
         return text.to_string();
@@ -268,6 +269,15 @@ fn collapse_stutters(text: &str) -> String {
     }
 
     result.join(" ")
+}
+
+fn collapse_stutters(text: &str) -> String {
+    // Process each line separately so structured output such as bullet lists,
+    // numbered lists, email blocks, and paragraphs keeps its original shape.
+    text.split('\n')
+        .map(collapse_stutters_in_line)
+        .collect::<Vec<_>>()
+        .join("\n")
 }
 
 /// Filters transcription output by removing filler words and stutter artifacts.
@@ -329,6 +339,20 @@ mod tests {
         let custom_words = vec!["Hello".to_string(), "World".to_string()];
         let result = apply_custom_words(text, &custom_words, 0.5);
         assert_eq!(result, "Hello World");
+    }
+
+    #[test]
+    fn filter_preserves_multiline_structure() {
+        let text = "Please buy:\n\n- milk\n- eggs\n- bread\n- honey";
+        let result = filter_transcription_output(text, "en", &None);
+        assert_eq!(result, text);
+    }
+
+    #[test]
+    fn filter_collapses_stutters_without_flattening_lines() {
+        let text = "Tasks:\n- send send send the report\n- call Patel";
+        let result = filter_transcription_output(text, "en", &None);
+        assert_eq!(result, "Tasks:\n- send the report\n- call Patel");
     }
 
     #[test]

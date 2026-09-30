@@ -79,9 +79,9 @@ pub fn tray_tooltip() -> String {
 
 fn version_label() -> String {
     if cfg!(debug_assertions) {
-        format!("Dictus v{} (Dev)", env!("CARGO_PKG_VERSION"))
+        format!("OpenWhisperFlow v{} (Dev)", env!("CARGO_PKG_VERSION"))
     } else {
-        format!("Dictus v{}", env!("CARGO_PKG_VERSION"))
+        format!("OpenWhisperFlow v{}", env!("CARGO_PKG_VERSION"))
     }
 }
 

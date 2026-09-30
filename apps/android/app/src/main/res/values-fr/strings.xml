@@ -4,7 +4,7 @@
     <string name="settings_hide_api_key">Masquer la clé API</string>
 
     <!-- Onboarding: Welcome screen (Step 1) -->
-    <string name="onboarding_welcome_wordmark">OpenWhisprFlow</string>
+    <string name="onboarding_welcome_wordmark">OpenWhisperFlow</string>
     <string name="onboarding_welcome_tagline">Dictation vocale</string>
     <string name="onboarding_welcome_cta">Commencer</string>
 

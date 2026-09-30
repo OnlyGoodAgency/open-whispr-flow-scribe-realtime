@@ -349,6 +349,51 @@ impl fmt::Debug for SecretString {
 }
 
 /* still handy for composing the initial JSON in the store ------------- */
+#[derive(Serialize, Deserialize, Debug, Clone, PartialEq, Eq, Type)]
+pub struct PersonalVocabularyEntry {
+    pub spoken: String,
+    pub written: String,
+}
+
+pub fn validate_personal_vocabulary(entries: &[PersonalVocabularyEntry]) -> Result<(), String> {
+    if entries.len() > 50 {
+        return Err("Personal vocabulary is limited to 50 entries".to_string());
+    }
+    let mut spoken_terms = std::collections::HashSet::new();
+    for entry in entries {
+        if entry.spoken.trim().is_empty()
+            || entry.written.trim().is_empty()
+            || entry.spoken.chars().count() > 80
+            || entry.written.chars().count() > 80
+            || entry.spoken.chars().any(char::is_control)
+            || entry.written.chars().any(char::is_control)
+        {
+            return Err(
+                "Each vocabulary entry must have two single-line terms of at most 80 characters"
+                    .to_string(),
+            );
+        }
+        if !spoken_terms.insert(entry.spoken.trim().to_lowercase()) {
+            return Err("Each spoken term must be unique".to_string());
+        }
+    }
+    Ok(())
+}
+
+pub fn validate_learned_vocabulary(entries: &[PersonalVocabularyEntry]) -> Result<(), String> {
+    if entries.len() > 100 {
+        return Err("Learned vocabulary is limited to 100 entries".to_string());
+    }
+    let mut spoken_terms = std::collections::HashSet::new();
+    for entry in entries {
+        validate_personal_vocabulary(std::slice::from_ref(entry))?;
+        if !spoken_terms.insert(entry.spoken.trim().to_lowercase()) {
+            return Err("Each learned spoken term must be unique".to_string());
+        }
+    }
+    Ok(())
+}
+
 #[derive(Serialize, Deserialize, Debug, Clone, Type)]
 pub struct AppSettings {
     pub bindings: HashMap<String, ShortcutBinding>,
@@ -366,13 +411,14 @@ pub struct AppSettings {
     pub update_checks_enabled: bool,
     #[serde(default = "default_model")]
     pub selected_model: String,
-    #[serde(default)]
+    #[serde(default = "default_remote_stt_enabled")]
     pub remote_stt_enabled: bool,
-    #[serde(default)]
+    // Legacy configuration: ignored on load and removed from rewritten settings.
+    #[serde(skip)]
     pub remote_stt_url: String,
-    #[serde(default)]
+    #[serde(skip)]
     pub remote_stt_api_key: SecretString,
-    #[serde(default = "default_remote_stt_model")]
+    #[serde(skip)]
     pub remote_stt_model: String,
     #[serde(default = "default_remote_stt_fallback_local")]
     pub remote_stt_fallback_local: bool,
@@ -396,6 +442,16 @@ pub struct AppSettings {
     pub log_level: LogLevel,
     #[serde(default)]
     pub custom_words: Vec<String>,
+    #[serde(default)]
+    pub personal_vocabulary: Vec<PersonalVocabularyEntry>,
+    #[serde(default = "default_learning_from_edits_enabled")]
+    pub learning_from_edits_enabled: bool,
+    #[serde(default)]
+    pub learned_vocabulary: Vec<PersonalVocabularyEntry>,
+    #[serde(default)]
+    pub screen_context_enabled: bool,
+    #[serde(default)]
+    pub filter_profanity: bool,
     #[serde(default)]
     pub model_unload_timeout: ModelUnloadTimeout,
     #[serde(default = "default_word_correction_threshold")]
@@ -473,11 +529,15 @@ fn default_model() -> String {
     "".to_string()
 }
 
-fn default_remote_stt_model() -> String {
-    "openai/whisper-large-v3-turbo".to_string()
+fn default_remote_stt_enabled() -> bool {
+    true
 }
 
 fn default_remote_stt_fallback_local() -> bool {
+    false
+}
+
+fn default_learning_from_edits_enabled() -> bool {
     true
 }
 
@@ -1016,10 +1076,10 @@ pub fn get_default_settings() -> AppSettings {
         autostart_enabled: default_autostart_enabled(),
         update_checks_enabled: default_update_checks_enabled(),
         selected_model: "".to_string(),
-        remote_stt_enabled: false,
+        remote_stt_enabled: default_remote_stt_enabled(),
         remote_stt_url: String::new(),
         remote_stt_api_key: SecretString::default(),
-        remote_stt_model: default_remote_stt_model(),
+        remote_stt_model: String::new(),
         remote_stt_fallback_local: default_remote_stt_fallback_local(),
         always_on_microphone: false,
         selected_microphone: None,
@@ -1031,6 +1091,11 @@ pub fn get_default_settings() -> AppSettings {
         debug_mode: false,
         log_level: default_log_level(),
         custom_words: Vec::new(),
+        personal_vocabulary: Vec::new(),
+        learning_from_edits_enabled: default_learning_from_edits_enabled(),
+        learned_vocabulary: Vec::new(),
+        screen_context_enabled: false,
+        filter_profanity: false,
         model_unload_timeout: ModelUnloadTimeout::default(),
         word_correction_threshold: default_word_correction_threshold(),
         history_limit: default_history_limit(),
@@ -1100,6 +1165,9 @@ pub fn load_or_create_app_settings(app: &AppHandle) -> AppSettings {
         .expect("Failed to initialize store");
 
     let mut settings = if let Some(settings_value) = store.get("settings") {
+        let had_legacy_cloud_credentials = settings_value.get("remote_stt_url").is_some()
+            || settings_value.get("remote_stt_api_key").is_some()
+            || settings_value.get("remote_stt_model").is_some();
         // Parse the entire settings object
         match serde_json::from_value::<AppSettings>(settings_value) {
             Ok(mut settings) => {
@@ -1118,8 +1186,8 @@ pub fn load_or_create_app_settings(app: &AppHandle) -> AppSettings {
                     }
                 }
 
-                if updated {
-                    debug!("Settings updated with new bindings");
+                if updated || had_legacy_cloud_credentials {
+                    debug!("Settings updated with new bindings or legacy cloud fields removed");
                     store.set("settings", serde_json::to_value(&settings).unwrap());
                 }
 
@@ -1378,6 +1446,59 @@ mod tests {
         assert!(settings.smart_mode_active_id.is_none());
         // smart_modes gets the default via serde default — now only Clean Up
         assert_eq!(settings.smart_modes.len(), 1);
+    }
+
+    #[test]
+    fn legacy_cloud_credentials_are_discarded_without_changing_cloud_choice() {
+        let mut saved = serde_json::to_value(get_default_settings()).unwrap();
+        saved["remote_stt_enabled"] = serde_json::json!(false);
+        saved["remote_stt_url"] = serde_json::json!("https://old.example.com");
+        saved["remote_stt_api_key"] = serde_json::json!("old-client-key");
+        saved["remote_stt_model"] = serde_json::json!("old-model");
+
+        let settings: AppSettings = serde_json::from_value(saved).unwrap();
+        assert!(!settings.remote_stt_enabled);
+        let rewritten = serde_json::to_value(settings).unwrap();
+        assert!(rewritten.get("remote_stt_url").is_none());
+        assert!(rewritten.get("remote_stt_api_key").is_none());
+        assert!(rewritten.get("remote_stt_model").is_none());
+        assert!(get_default_settings().remote_stt_enabled);
+    }
+
+    #[test]
+    fn personal_vocabulary_survives_settings_round_trip() {
+        let mut settings = get_default_settings();
+        settings.personal_vocabulary = vec![PersonalVocabularyEntry {
+            spoken: "akme".to_string(),
+            written: "ACME".to_string(),
+        }];
+        let loaded: AppSettings =
+            serde_json::from_value(serde_json::to_value(settings).unwrap()).unwrap();
+        assert_eq!(loaded.personal_vocabulary[0].spoken, "akme");
+        assert_eq!(loaded.personal_vocabulary[0].written, "ACME");
+        assert!(validate_personal_vocabulary(&loaded.personal_vocabulary).is_ok());
+        assert!(validate_personal_vocabulary(&[
+            loaded.personal_vocabulary[0].clone(),
+            PersonalVocabularyEntry {
+                spoken: "AKME".to_string(),
+                written: "Acme".to_string(),
+            },
+        ])
+        .is_err());
+    }
+
+    #[test]
+    fn learned_vocabulary_survives_settings_round_trip() {
+        let mut settings = get_default_settings();
+        settings.learned_vocabulary = vec![PersonalVocabularyEntry {
+            spoken: "Acme".to_string(),
+            written: "ACME".to_string(),
+        }];
+        let loaded: AppSettings =
+            serde_json::from_value(serde_json::to_value(settings).unwrap()).unwrap();
+        assert!(loaded.learning_from_edits_enabled);
+        assert_eq!(loaded.learned_vocabulary[0].written, "ACME");
+        assert!(validate_learned_vocabulary(&loaded.learned_vocabulary).is_ok());
     }
 
     // ── Migration tests ───────────────────────────────────────────────────────

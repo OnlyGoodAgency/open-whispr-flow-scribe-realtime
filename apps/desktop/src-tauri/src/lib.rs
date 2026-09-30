@@ -6,6 +6,7 @@ pub mod audio_toolkit;
 pub mod cli;
 mod clipboard;
 mod commands;
+mod edit_learning;
 mod helpers;
 mod input;
 mod llm_client;
@@ -13,6 +14,7 @@ mod managers;
 mod overlay;
 pub mod portable;
 mod remote_stt;
+mod screen_context;
 mod settings;
 mod shortcut;
 mod signal_handle;
@@ -465,6 +467,11 @@ pub fn run(cli_args: CliArgs) {
             shortcut::clear_smart_mode_binding,
             shortcut::smart_mode_templates,
             shortcut::update_custom_words,
+            shortcut::update_personal_vocabulary,
+            shortcut::change_learning_from_edits_enabled_setting,
+            shortcut::change_screen_context_enabled_setting,
+            shortcut::change_filter_profanity_setting,
+            shortcut::update_learned_vocabulary,
             shortcut::suspend_binding,
             shortcut::resume_binding,
             shortcut::suspend_all_shortcuts,
@@ -632,7 +639,7 @@ pub fn run(cli_args: CliArgs) {
             // for portable mode (redirects WebView2 cache to portable Data dir)
             let mut win_builder =
                 tauri::WebviewWindowBuilder::new(app, "main", tauri::WebviewUrl::App("/".into()))
-                    .title("Dictus")
+                    .title("OpenWhisperFlow")
                     .inner_size(680.0, 570.0)
                     .min_inner_size(680.0, 570.0)
                     .resizable(true)

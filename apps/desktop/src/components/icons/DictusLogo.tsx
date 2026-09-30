@@ -7,7 +7,7 @@ const DictusLogo = ({
 }) => (
   <svg
     width={width || 200}
-    viewBox="0 0 200 80"
+    viewBox="0 0 340 80"
     fill="none"
     xmlns="http://www.w3.org/2000/svg"
     className={className}
@@ -56,7 +56,7 @@ const DictusLogo = ({
       fill="currentColor"
       opacity="0.65"
     />
-    {/* Dictus wordmark — brand name, intentionally not localized */}
+    {/* Brand name is intentionally not localized. */}
     <text
       x="85"
       y="55"
@@ -65,7 +65,7 @@ const DictusLogo = ({
       fontSize="28"
       fill="currentColor"
     >
-      {"Dictus"}
+      {"OpenWhisperFlow"}
     </text>
   </svg>
 );

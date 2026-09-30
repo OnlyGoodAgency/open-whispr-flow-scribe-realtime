@@ -140,11 +140,11 @@ impl SupabaseHistorySync {
             return Ok(());
         }
 
-        let session = self.valid_session().await?;
+        let session = self.valid_session(false).await?;
         match self.upsert_entry_with_session(entry, &session).await {
             Err(error) if is_session_rejection(&error) => {
                 self.clear_session().await?;
-                let replacement = self.valid_session().await?;
+                let replacement = self.valid_session(false).await?;
                 self.upsert_entry_with_session(entry, &replacement).await
             }
             result => result,
@@ -221,10 +221,16 @@ impl SupabaseHistorySync {
         Ok(())
     }
 
-    async fn valid_session(&self) -> Result<ActiveSession> {
+    /// Return a short-lived access token for the shared transcription gateway.
+    /// A gateway 401 can request one forced refresh using the stored refresh token.
+    pub async fn access_token(&self, force_refresh: bool) -> Result<String> {
+        Ok(self.valid_session(force_refresh).await?.access_token)
+    }
+
+    async fn valid_session(&self, force_refresh: bool) -> Result<ActiveSession> {
         let mut state = self.state.lock().await;
         let now = Utc::now().timestamp();
-        if state.expires_at.unwrap_or_default() > now + EXPIRY_SKEW_SECONDS {
+        if !force_refresh && state.expires_at.unwrap_or_default() > now + EXPIRY_SKEW_SECONDS {
             if let (Some(access_token), Some(user_id)) =
                 (state.access_token.clone(), state.user_id.clone())
             {

@@ -1,6 +1,8 @@
+use crate::managers::history::HistoryManager;
 use crate::settings::AppSettings;
 use anyhow::{anyhow, bail, Context, Result};
 use reqwest::multipart::{Form, Part};
+use reqwest::StatusCode;
 use serde::Deserialize;
 use std::io::Cursor;
 use std::time::Duration;
@@ -10,60 +12,90 @@ struct TranscriptionResponse {
     text: String,
 }
 
-pub async fn transcribe(settings: &AppSettings, samples: &[f32]) -> Result<String> {
-    let endpoint = normalize_endpoint(&settings.remote_stt_url)?;
-    let api_key = settings.remote_stt_api_key.expose().trim();
-    if api_key.is_empty() {
-        bail!("The shared server API key is missing");
-    }
+const DEFAULT_GATEWAY_URL: &str = "https://uhqgd4qlmep8pnndo8j893bc.187.52.126.169.sslip.io";
+
+pub async fn transcribe(
+    settings: &AppSettings,
+    samples: &[f32],
+    history: &HistoryManager,
+    screen_context: &str,
+) -> Result<String> {
+    let gateway_url =
+        std::env::var("CLOUD_GATEWAY_URL").unwrap_or_else(|_| DEFAULT_GATEWAY_URL.to_string());
+    let endpoint = normalize_endpoint(&gateway_url)?;
 
     let wav = encode_wav(samples)?;
-    let audio = Part::bytes(wav)
-        .file_name("dictation.wav")
-        .mime_str("audio/wav")?;
-    let mut form = Form::new().part("file", audio).text(
-        "model",
-        if settings.remote_stt_model.trim().is_empty() {
-            "openai/whisper-large-v3-turbo".to_string()
-        } else {
-            settings.remote_stt_model.trim().to_string()
-        },
-    );
-
-    if settings.selected_language != "auto" && !settings.selected_language.trim().is_empty() {
-        form = form.text("language", settings.selected_language.clone());
-    }
-    if !settings.custom_words.is_empty() {
-        form = form.text("prompt", settings.custom_words.join(", "));
-    }
-
     let client = reqwest::Client::builder()
         .connect_timeout(Duration::from_secs(15))
         .timeout(Duration::from_secs(135))
         .build()?;
-    let response = client
-        .post(endpoint)
-        .bearer_auth(api_key)
-        .multipart(form)
-        .send()
-        .await
-        .context("Could not connect to the shared transcription server")?;
-    let status = response.status();
-    if !status.is_success() {
-        bail!(
-            "Shared transcription server returned HTTP {}",
-            status.as_u16()
-        );
+
+    for force_refresh in [false, true] {
+        let token = history
+            .cloud_access_token(force_refresh)
+            .await
+            .context("Could not authenticate cloud transcription")?;
+        let audio = Part::bytes(wav.clone())
+            .file_name("dictation.wav")
+            .mime_str("audio/wav")?;
+        let mut form = Form::new().part("file", audio);
+        if settings.selected_language != "auto" && !settings.selected_language.trim().is_empty() {
+            form = form.text("language", settings.selected_language.clone());
+        }
+        if !settings.custom_words.is_empty() {
+            form = form.text("prompt", settings.custom_words.join(", "));
+        }
+        let learned_vocabulary: &[crate::settings::PersonalVocabularyEntry] =
+            if settings.learning_from_edits_enabled {
+                &settings.learned_vocabulary
+            } else {
+                &[]
+            };
+        if !settings.personal_vocabulary.is_empty()
+            || !learned_vocabulary.is_empty()
+            || !screen_context.is_empty()
+            || settings.filter_profanity
+        {
+            form = form.text(
+                "cleanup_options",
+                serde_json::json!({
+                    "vocabulary": &settings.personal_vocabulary,
+                    "learned_vocabulary": learned_vocabulary,
+                    "context": screen_context,
+                    "filter_profanity": settings.filter_profanity
+                })
+                .to_string(),
+            );
+        }
+
+        let response = client
+            .post(endpoint.clone())
+            .bearer_auth(token)
+            .multipart(form)
+            .send()
+            .await
+            .context("Could not connect to the shared transcription server")?;
+        let status = response.status();
+        if status == StatusCode::UNAUTHORIZED && !force_refresh {
+            continue;
+        }
+        if !status.is_success() {
+            bail!(
+                "Shared transcription server returned HTTP {}",
+                status.as_u16()
+            );
+        }
+        let result: TranscriptionResponse = response
+            .json()
+            .await
+            .context("Shared transcription server returned invalid JSON")?;
+        let text = result.text.trim().to_string();
+        if text.is_empty() {
+            bail!("Shared transcription server returned an empty transcription");
+        }
+        return Ok(text);
     }
-    let result: TranscriptionResponse = response
-        .json()
-        .await
-        .context("Shared transcription server returned invalid JSON")?;
-    let text = result.text.trim().to_string();
-    if text.is_empty() {
-        bail!("Shared transcription server returned an empty transcription");
-    }
-    Ok(text)
+    bail!("Cloud transcription authorization failed")
 }
 
 fn normalize_endpoint(value: &str) -> Result<reqwest::Url> {

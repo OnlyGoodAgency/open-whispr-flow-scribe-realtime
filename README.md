@@ -105,28 +105,20 @@ Android builds can override it with the `CLOUD_GATEWAY_URL` Gradle property or
 environment variable. This is a public address, not a secret. Existing saved
 Android server credentials are no longer used for cloud requests.
 
-The gateway must have `SUPABASE_URL` set to the same project as the Android
-build. Keep `CLIENT_API_KEY` in Coolify during this migration: gateway startup
-still requires it and desktop clients still use it. The upstream provider key
-and model settings remain on the server. Redeploy the gateway after changing
-its environment variables. No mobile `.env` containing provider secrets is
-needed.
+The gateway must have `SUPABASE_URL` set to the same project as the clients.
+Desktop and Android use anonymous Supabase sessions to authenticate cloud
+dictation. Keep `CLIENT_API_KEY` in Coolify only for older installed clients:
+gateway startup still requires it during the migration. The upstream provider
+key and model settings remain on the server. Redeploy the gateway after changing
+its environment variables. Client builds contain no provider secrets.
 
-Desktop still uses the migration key and manual shared-server settings:
-
-| Setting | Value |
-| --- | --- |
-| Transcription URL | `https://whisper.example.com/v1/audio/transcriptions` |
-| API base URL | `https://whisper.example.com/v1` |
-| API key | The value of `CLIENT_API_KEY` in Coolify |
-| Model sent by client | `openai/whisper-large-v3-turbo` |
-| Language | `auto`, `tl`, or `en` |
-
-In the desktop client, enable **Use shared server**, enter the public
-HTTPS URL and client API key, and select Automatic, English, or
-Tagalog/Taglish. The client accepts either the base URL or the full
-`/v1/audio/transcriptions` endpoint. The gateway owns the final model choice,
-so changing the model field on a device cannot bypass the server policy.
+Desktop cloud transcription is enabled by default for new installations. The
+gateway URL is built in and can be overridden for development with the
+`CLOUD_GATEWAY_URL` environment variable. Desktop reuses its existing Supabase
+session, refreshes expired tokens, and retries once after a gateway HTTP 401.
+Users choose only the language and whether an installed local model should be
+used when the gateway is unavailable. Older saved URL, API key, and model values
+are removed from desktop settings when the upgraded app starts.
 
 ### Deploy and test Android realtime dictation
 
@@ -337,9 +329,9 @@ bun run build
 bun run tauri build
 ```
 
-On first launch, grant microphone and input/accessibility permissions. Choose
-**Configure my shared OpenWhisperFlow server** to run without downloading a
-local model, or install a local model for offline fallback.
+On first launch, grant microphone and input/accessibility permissions. Cloud
+dictation works without entering a server URL, API key, or model. You can install
+a local model separately for offline use.
 
 Every GitHub Actions run also builds an installable Windows `.msi` and `.exe`.
 Open the repository's **Actions** run, then download the

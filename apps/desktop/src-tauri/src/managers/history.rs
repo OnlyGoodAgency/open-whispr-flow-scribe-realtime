@@ -112,6 +112,14 @@ impl HistoryManager {
         }
     }
 
+    pub async fn cloud_access_token(&self, force_refresh: bool) -> Result<String> {
+        let sync = self
+            .supabase_sync
+            .as_ref()
+            .ok_or_else(|| anyhow!("Cloud authentication is not configured"))?;
+        sync.access_token(force_refresh).await
+    }
+
     fn init_database(&self) -> Result<()> {
         info!("Initializing database at {:?}", self.db_path);
 

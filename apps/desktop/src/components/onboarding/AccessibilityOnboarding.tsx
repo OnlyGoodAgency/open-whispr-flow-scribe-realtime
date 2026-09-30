@@ -322,7 +322,7 @@ const AccessibilityOnboarding: React.FC<AccessibilityOnboardingProps> = ({
   return (
     <div className="h-screen w-screen flex flex-col p-6 gap-6 items-center justify-center">
       <div className="flex flex-col items-center gap-2">
-        <DictusLogo width={200} />
+        <DictusLogo width={300} />
       </div>
 
       <div className="max-w-md w-full flex flex-col items-center gap-4">

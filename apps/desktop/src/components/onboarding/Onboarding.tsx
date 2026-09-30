@@ -6,6 +6,7 @@ import type { ModelCardStatus } from "./ModelCard";
 import ModelCard from "./ModelCard";
 import DictusLogo from "../icons/DictusLogo";
 import { useModelStore } from "../../stores/modelStore";
+import { commands } from "@/bindings";
 
 interface OnboardingProps {
   onModelSelected: () => void;
@@ -73,6 +74,16 @@ const Onboarding: React.FC<OnboardingProps> = ({ onModelSelected }) => {
     }
   };
 
+  const handleCloudSelected = async () => {
+    try {
+      const result = await commands.changeRemoteSttEnabledSetting(true);
+      if (result.status === "error") throw new Error(result.error);
+      onModelSelected();
+    } catch {
+      toast.error("Could not enable cloud transcription");
+    }
+  };
+
   const getModelStatus = (modelId: string): ModelCardStatus => {
     if (modelId in extractingModels) return "extracting";
     if (modelId in verifyingModels) return "verifying";
@@ -91,7 +102,7 @@ const Onboarding: React.FC<OnboardingProps> = ({ onModelSelected }) => {
   return (
     <div className="h-screen w-screen flex flex-col p-6 gap-4 inset-0">
       <div className="flex flex-col items-center gap-2 shrink-0">
-        <DictusLogo width={200} />
+        <DictusLogo width={300} />
         <p className="text-text/70 max-w-md font-medium mx-auto">
           {t("onboarding.subtitle")}
         </p>
@@ -102,10 +113,10 @@ const Onboarding: React.FC<OnboardingProps> = ({ onModelSelected }) => {
           <button
             type="button"
             disabled={isDownloading}
-            onClick={onModelSelected}
+            onClick={handleCloudSelected}
             className="w-full rounded-lg border border-logo-primary px-4 py-3 text-sm font-semibold text-logo-primary hover:bg-logo-primary/10 disabled:opacity-50"
           >
-            Configure my shared OpenWhisperFlow server
+            Use cloud transcription
           </button>
           <p className="text-xs text-text/60">
             Or install a local model below for offline dictation.

@@ -606,6 +606,10 @@ impl ShortcutAction for TranscribeAction {
         let rm = app.state::<Arc<AudioRecordingManager>>();
         let settings = get_settings(app);
 
+        if settings.remote_stt_enabled && settings.screen_context_enabled {
+            crate::screen_context::begin_capture(binding_id);
+        }
+
         // Load ASR model and VAD model in parallel
         if !settings.remote_stt_enabled || settings.remote_stt_fallback_local {
             tm.initiate_model_load();
@@ -676,6 +680,7 @@ impl ShortcutAction for TranscribeAction {
             shortcut::register_cancel_shortcut(app);
         } else {
             // Starting failed (for example due to blocked microphone permissions).
+            crate::screen_context::discard(&binding_id);
             // Revert UI state so we don't stay stuck in the recording overlay.
             utils::hide_recording_overlay(app);
             change_tray_icon(app, TrayIconState::Idle);
@@ -759,6 +764,7 @@ fn spawn_transcription_task(
             );
 
             if samples.is_empty() {
+                crate::screen_context::discard(&binding_id);
                 debug!("Recording produced no audio samples; skipping persistence");
                 utils::hide_recording_overlay(&ah);
                 change_tray_icon(&ah, TrayIconState::Idle);
@@ -778,7 +784,13 @@ fn spawn_transcription_task(
                 let transcription_time = Instant::now();
                 let settings = get_settings(&ah);
                 let transcription_result = if settings.remote_stt_enabled {
-                    match crate::remote_stt::transcribe(&settings, &samples).await {
+                    let context = if settings.screen_context_enabled {
+                        crate::screen_context::take(&binding_id).await
+                    } else {
+                        crate::screen_context::discard(&binding_id);
+                        String::new()
+                    };
+                    match crate::remote_stt::transcribe(&settings, &samples, &hm, &context).await {
                         Ok(text) => Ok(filter_transcription_output(
                             &text,
                             &settings.app_language,
@@ -794,6 +806,7 @@ fn spawn_transcription_task(
                         Err(remote_error) => Err(remote_error),
                     }
                 } else {
+                    crate::screen_context::discard(&binding_id);
                     tm.transcribe(samples)
                 };
 
@@ -866,11 +879,17 @@ fn spawn_transcription_task(
                             // then show a hint pill instead of a silent dismiss.
                             let post_process_failed = processed.post_process_failed;
                             ah.run_on_main_thread(move || {
-                                match utils::paste(final_text, ah_clone.clone()) {
-                                    Ok(()) => debug!(
-                                        "Text pasted successfully in {:?}",
-                                        paste_time.elapsed()
-                                    ),
+                                match utils::paste(final_text.clone(), ah_clone.clone()) {
+                                    Ok(()) => {
+                                        debug!(
+                                            "Text pasted successfully in {:?}",
+                                            paste_time.elapsed()
+                                        );
+                                        crate::edit_learning::watch_after_paste(
+                                            ah_clone.clone(),
+                                            final_text,
+                                        );
+                                    }
                                     Err(e) => {
                                         error!("Failed to paste transcription: {}", e);
                                         let _ = ah_clone.emit("paste-error", ());
@@ -913,6 +932,7 @@ fn spawn_transcription_task(
                 }
             }
         } else {
+            crate::screen_context::discard(&binding_id);
             debug!("No samples retrieved from recording stop");
             utils::hide_recording_overlay(&ah);
             change_tray_icon(&ah, TrayIconState::Idle);
@@ -950,6 +970,7 @@ struct CancelAction;
 
 impl ShortcutAction for CancelAction {
     fn start(&self, app: &AppHandle, _binding_id: &str, _shortcut_str: &str) {
+        crate::screen_context::discard_all();
         utils::cancel_current_operation(app);
     }
 

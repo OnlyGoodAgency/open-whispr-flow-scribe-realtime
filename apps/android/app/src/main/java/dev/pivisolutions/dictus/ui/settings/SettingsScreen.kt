@@ -131,6 +131,9 @@ fun SettingsScreen(
     var showFloatingMicDisclosure by remember { mutableStateOf(false) }
     var showVocabulary by remember { mutableStateOf(false) }
     var vocabularyDraft by remember { mutableStateOf("") }
+    var showVocabularyFields by remember { mutableStateOf(false) }
+    var spokenDraft by remember { mutableStateOf("") }
+    var writtenDraft by remember { mutableStateOf("") }
 
     fun openAccessibilitySettings() {
         val intent = Intent(Settings.ACTION_ACCESSIBILITY_SETTINGS)
@@ -139,6 +142,75 @@ fun SettingsScreen(
         } else {
             Toast.makeText(context, R.string.floating_mic_settings_unavailable, Toast.LENGTH_LONG).show()
         }
+    }
+
+    if (showVocabularyFields) {
+        val entries = DictationVocabulary.parse(vocabularyDraft)
+        AlertDialog(
+            onDismissRequest = { showVocabularyFields = false },
+            title = { Text(stringResource(R.string.settings_dictation_vocabulary)) },
+            text = {
+                Column(
+                    modifier = Modifier.verticalScroll(rememberScrollState()),
+                    verticalArrangement = Arrangement.spacedBy(8.dp),
+                ) {
+                    OutlinedTextField(
+                        value = spokenDraft,
+                        onValueChange = { spokenDraft = it },
+                        label = { Text("What you say") },
+                        singleLine = true,
+                        modifier = Modifier.fillMaxWidth(),
+                    )
+                    OutlinedTextField(
+                        value = writtenDraft,
+                        onValueChange = { writtenDraft = it },
+                        label = { Text("How it should appear") },
+                        singleLine = true,
+                        modifier = Modifier.fillMaxWidth(),
+                    )
+                    TextButton(
+                        enabled = spokenDraft.isNotBlank() && writtenDraft.isNotBlank() && entries.size < 50,
+                        onClick = {
+                            val spoken = spokenDraft.trim()
+                            val written = writtenDraft.trim()
+                            val updated = (entries.map { "${it.spoken} => ${it.written}" } + "$spoken => $written")
+                                .joinToString("\n")
+                            if (entries.any { it.spoken.equals(spoken, ignoreCase = true) }) {
+                                Toast.makeText(context, "That spoken term is already in your vocabulary", Toast.LENGTH_SHORT).show()
+                            } else if (!DictationVocabulary.isValid(updated)) {
+                                Toast.makeText(context, "Use single-line terms of 80 characters or fewer", Toast.LENGTH_SHORT).show()
+                            } else {
+                                vocabularyDraft = updated
+                                viewModel.setDictationVocabulary(updated)
+                                spokenDraft = ""
+                                writtenDraft = ""
+                            }
+                        },
+                    ) { Text("Add") }
+                    entries.forEach { entry ->
+                        Row(
+                            modifier = Modifier.fillMaxWidth(),
+                            verticalAlignment = Alignment.CenterVertically,
+                            horizontalArrangement = Arrangement.SpaceBetween,
+                        ) {
+                            Text(
+                                "${entry.spoken} → ${entry.written}",
+                                modifier = Modifier.weight(1f),
+                            )
+                            TextButton(onClick = {
+                                val updated = entries.filterNot { it.spoken == entry.spoken }
+                                    .joinToString("\n") { "${it.spoken} => ${it.written}" }
+                                vocabularyDraft = updated
+                                viewModel.setDictationVocabulary(updated)
+                            }) { Text("Remove") }
+                        }
+                    }
+                }
+            },
+            confirmButton = {
+                TextButton(onClick = { showVocabularyFields = false }) { Text("Done") }
+            },
+        )
     }
 
     Column(
@@ -177,7 +249,12 @@ fun SettingsScreen(
                 SettingPickerRow(
                     label = stringResource(R.string.settings_dictation_vocabulary),
                     value = DictationVocabulary.parse(vocabulary).size.toString(),
-                    onClick = { vocabularyDraft = vocabulary; showVocabulary = true },
+                    onClick = {
+                        vocabularyDraft = vocabulary
+                        spokenDraft = ""
+                        writtenDraft = ""
+                        showVocabularyFields = true
+                    },
                 )
                 SettingDivider()
                 SettingToggleRow(

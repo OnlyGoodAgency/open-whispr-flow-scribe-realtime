@@ -740,6 +740,68 @@ pub fn update_custom_words(app: AppHandle, words: Vec<String>) -> Result<(), Str
 
 #[tauri::command]
 #[specta::specta]
+pub fn update_personal_vocabulary(
+    app: AppHandle,
+    entries: Vec<settings::PersonalVocabularyEntry>,
+) -> Result<(), String> {
+    settings::validate_personal_vocabulary(&entries)?;
+    let mut settings = settings::get_settings(&app);
+    settings.personal_vocabulary = entries
+        .into_iter()
+        .map(|entry| settings::PersonalVocabularyEntry {
+            spoken: entry.spoken.trim().to_string(),
+            written: entry.written.trim().to_string(),
+        })
+        .collect();
+    settings::write_settings(&app, settings);
+    Ok(())
+}
+
+#[tauri::command]
+#[specta::specta]
+pub fn change_learning_from_edits_enabled_setting(
+    app: AppHandle,
+    enabled: bool,
+) -> Result<(), String> {
+    let mut settings = settings::get_settings(&app);
+    settings.learning_from_edits_enabled = enabled;
+    settings::write_settings(&app, settings);
+    Ok(())
+}
+
+#[tauri::command]
+#[specta::specta]
+pub fn change_screen_context_enabled_setting(app: AppHandle, enabled: bool) -> Result<(), String> {
+    let mut settings = settings::get_settings(&app);
+    settings.screen_context_enabled = enabled;
+    settings::write_settings(&app, settings);
+    Ok(())
+}
+
+#[tauri::command]
+#[specta::specta]
+pub fn change_filter_profanity_setting(app: AppHandle, enabled: bool) -> Result<(), String> {
+    let mut settings = settings::get_settings(&app);
+    settings.filter_profanity = enabled;
+    settings::write_settings(&app, settings);
+    Ok(())
+}
+
+#[tauri::command]
+#[specta::specta]
+pub fn update_learned_vocabulary(
+    app: AppHandle,
+    entries: Vec<settings::PersonalVocabularyEntry>,
+) -> Result<(), String> {
+    settings::validate_learned_vocabulary(&entries)?;
+    let mut settings = settings::get_settings(&app);
+    settings.learned_vocabulary = entries;
+    settings::write_settings(&app, settings);
+    Ok(())
+}
+
+#[tauri::command]
+#[specta::specta]
 pub fn change_word_correction_threshold_setting(
     app: AppHandle,
     threshold: f64,

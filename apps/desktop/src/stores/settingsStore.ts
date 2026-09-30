@@ -113,12 +113,6 @@ const settingUpdaters: {
     commands.changeSelectedLanguageSetting(value as string),
   remote_stt_enabled: (value) =>
     commands.changeRemoteSttEnabledSetting(value as boolean),
-  remote_stt_url: (value) =>
-    commands.changeRemoteSttUrlSetting(value as string),
-  remote_stt_api_key: (value) =>
-    commands.changeRemoteSttApiKeySetting(value as string),
-  remote_stt_model: (value) =>
-    commands.changeRemoteSttModelSetting(value as string),
   remote_stt_fallback_local: (value) =>
     commands.changeRemoteSttFallbackLocalSetting(value as boolean),
   overlay_position: (value) =>

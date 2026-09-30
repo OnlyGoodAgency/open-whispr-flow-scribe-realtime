@@ -188,8 +188,7 @@ function App() {
       const settingsResult = await commands.getAppSettings();
       const hasRemoteServer =
         settingsResult.status === "ok" &&
-        settingsResult.data.remote_stt_enabled === true &&
-        Boolean(settingsResult.data.remote_stt_url?.trim());
+        settingsResult.data.remote_stt_enabled === true;
       const currentPlatform = platform();
 
       if (hasModels || hasRemoteServer) {
