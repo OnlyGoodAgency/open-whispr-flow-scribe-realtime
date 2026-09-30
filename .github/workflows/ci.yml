@@ -34,7 +34,7 @@ jobs:
         run: sdkmanager "platforms;android-35" "build-tools;35.0.0" "ndk;27.2.12479018" "cmake;3.22.1"
       - name: Test and build APK
         working-directory: apps/android
-        run: ./gradlew testDebugUnitTest :app:lintDebug :app:assembleDebug --no-daemon
+        run: bash ./gradlew testDebugUnitTest :app:lintDebug :app:assembleDebug --no-daemon
       - name: Check APK native library alignment for 16 KB devices
         run: python3 tools/android/check_apk_alignment.py apps/android/app/build/outputs/apk/debug/app-debug.apk
       - uses: actions/upload-artifact@v4

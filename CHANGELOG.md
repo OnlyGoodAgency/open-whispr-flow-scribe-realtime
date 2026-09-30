@@ -24,6 +24,7 @@ This log tracks changes to the OpenWhisperFlow fork, not the upstream Dictus pro
 - Handle a trailing sentence period after an email address when lowercasing its domain, so Personal Vocabulary cannot change `john@acme.com.` back to `john@ACME.com.`.
 - Update Android CI to the SDK setup action that no longer requests Google's removed `tools` package.
 - Switch Windows CI native builds to Ninja to address the observed ggml Vulkan shader helper install/configure race; confirm in the next Actions run.
+- Run Android's Gradle wrapper through Bash in CI so the APK build does not depend on its Git executable bit.
 
 ## 2026-09-30 — committed source changes
 
