@@ -8,6 +8,7 @@ import org.robolectric.RobolectricTestRunner
 import org.robolectric.RuntimeEnvironment
 import org.robolectric.annotation.Config
 import java.io.File
+import java.io.RandomAccessFile
 
 /**
  * Unit tests for ModelManager.
@@ -40,7 +41,7 @@ class ModelManagerTest {
     @Test
     fun `getModelPath returns path when file exists with correct size`() {
         val file = File(modelsDir, "ggml-tiny.bin")
-        file.writeBytes(ByteArray(77_691_713))
+        createSizedFile(file, 77_691_713)
         val path = modelManager.getModelPath("tiny")
         assertNotNull(path)
         assertEquals(file.canonicalPath, File(path!!).canonicalPath)
@@ -68,7 +69,7 @@ class ModelManagerTest {
     @Test
     fun `isDownloaded returns true when file exists with correct size`() {
         val file = File(modelsDir, "ggml-tiny.bin")
-        file.writeBytes(ByteArray(77_691_713))
+        createSizedFile(file, 77_691_713)
         assertTrue(modelManager.isDownloaded("tiny"))
     }
 
@@ -82,7 +83,7 @@ class ModelManagerTest {
     @Test
     fun `getDownloadedModels returns key for downloaded model`() {
         val file = File(modelsDir, "ggml-tiny.bin")
-        file.writeBytes(ByteArray(77_691_713))
+        createSizedFile(file, 77_691_713)
         val downloaded = modelManager.getDownloadedModels()
         assertEquals(listOf("tiny"), downloaded)
     }
@@ -92,16 +93,16 @@ class ModelManagerTest {
     @Test
     fun `canDelete returns false when only 1 model downloaded`() {
         val file = File(modelsDir, "ggml-tiny.bin")
-        file.writeBytes(ByteArray(77_691_713))
+        createSizedFile(file, 77_691_713)
         assertFalse(modelManager.canDelete("tiny"))
     }
 
     @Test
     fun `canDelete returns true when 2 models downloaded`() {
         val tiny = File(modelsDir, "ggml-tiny.bin")
-        tiny.writeBytes(ByteArray(77_691_713))
+        createSizedFile(tiny, 77_691_713)
         val small = File(modelsDir, "ggml-small-q5_1.bin")
-        small.writeBytes(ByteArray(190_031_232))
+        createSizedFile(small, 190_031_232)
         assertTrue(modelManager.canDelete("tiny"))
         assertTrue(modelManager.canDelete("small-q5_1"))
     }
@@ -109,9 +110,9 @@ class ModelManagerTest {
     @Test
     fun `canDelete returns false for non-downloaded model`() {
         val tiny = File(modelsDir, "ggml-tiny.bin")
-        tiny.writeBytes(ByteArray(77_691_713))
+        createSizedFile(tiny, 77_691_713)
         val small = File(modelsDir, "ggml-small-q5_1.bin")
-        small.writeBytes(ByteArray(190_031_232))
+        createSizedFile(small, 190_031_232)
         // "base" is not downloaded, so canDelete should be false even though 2 others are present
         assertFalse(modelManager.canDelete("base"))
     }
@@ -121,7 +122,7 @@ class ModelManagerTest {
     @Test
     fun `deleteModel returns false when last model`() {
         val file = File(modelsDir, "ggml-tiny.bin")
-        file.writeBytes(ByteArray(77_691_713))
+        createSizedFile(file, 77_691_713)
         assertFalse(modelManager.deleteModel("tiny"))
         assertTrue("File should still exist", file.exists())
     }
@@ -129,9 +130,9 @@ class ModelManagerTest {
     @Test
     fun `deleteModel returns true and removes file when multiple models exist`() {
         val tiny = File(modelsDir, "ggml-tiny.bin")
-        tiny.writeBytes(ByteArray(77_691_713))
+        createSizedFile(tiny, 77_691_713)
         val small = File(modelsDir, "ggml-small-q5_1.bin")
-        small.writeBytes(ByteArray(190_031_232))
+        createSizedFile(small, 190_031_232)
         assertTrue(modelManager.deleteModel("tiny"))
         assertFalse("File should be deleted", tiny.exists())
     }
@@ -180,5 +181,9 @@ class ModelManagerTest {
     @Test
     fun `defaultModelKey is tiny`() {
         assertEquals("tiny", ModelManager.DEFAULT_MODEL_KEY)
+    }
+
+    private fun createSizedFile(file: File, size: Long) {
+        RandomAccessFile(file, "rw").use { it.setLength(size) }
     }
 }
